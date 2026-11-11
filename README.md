@@ -17,7 +17,7 @@ npm start
 ```
 
 En el primer inicio se crea el usuario `admin` (la contraseña aparece en la consola) y se abre automáticamente el
-sorteo de esta semana **con Comodines Halloween**, con cierre el próximo sábado a las 18:00 (hora de Chile).
+sorteo de esta semana **con Comodines Halloween**, con cierre el próximo sábado a las 19:00 (hora de Chile).
 Para elegirla tú: `ADMIN_PASSWORD=miClave123 npm start`. Luego abre http://localhost:3000.
 
 ### Configuración (variables de entorno)
@@ -30,7 +30,7 @@ Para elegirla tú: `ADMIN_PASSWORD=miClave123 npm start`. Luego abre http://loca
 | `BIG_AMOUNT` | `1000000` | Desde este total el agente debe escribir el monto dos veces |
 | `ADMIN_PASSWORD` | aleatoria | Contraseña del admin en el primer inicio |
 
-Las reglas fijas (20.000 por ticket, tope 10 por día, cierre sugerido sábado 18:00) están en `src/config.js`.
+Las reglas fijas (20.000 por ticket, tope 10 por día, cierre sugerido sábado 19:00) están en `src/config.js`.
 
 ## Publicarlo en internet (Railway)
 
@@ -58,7 +58,7 @@ El login se bloquea 15 minutos tras 8 intentos fallidos por usuario.
 - **Sin cambio, sin tickets:** si el total no cambió, no se entrega nada.
 - **Tope de 10 tickets por usuario por día**, sumando las dos urnas.
 - **Día por el servidor:** el día cambia a las 00:00 hora de Chile.
-- **Entregas solo con sorteo abierto:** al llegar el cierre (por defecto sábado 18:00) las entregas **se bloquean solas**. El panel lo muestra en rojo y sugiere una respuesta para el usuario. Se reactivan cuando el admin anuncia un nuevo sorteo.
+- **Entregas solo con sorteo abierto:** al llegar el cierre (por defecto sábado 19:00) las entregas **se bloquean solas**. El panel lo muestra en rojo y sugiere una respuesta para el usuario. Se reactivan cuando el admin anuncia un nuevo sorteo.
 - **Comodines por sorteo:** cada sorteo indica si tiene Comodines. El primero (esta semana) los incluye; los siguientes se crean sin Comodines por defecto, y entonces todo va al Bombo Premios y las opciones de Halloween desaparecen del panel.
 - **Numeración:** consecutiva y única por sorteo y por urna (`A-0001`, `B-0001`); se reinicia cada semana.
 - **Reto Halloween:** solo los usuarios marcados ("le falta 1 día") pueden recibir tickets de Comodín. Cualquier agente puede marcar a un usuario; solo un admin puede quitar la marca.

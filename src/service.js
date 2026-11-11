@@ -363,7 +363,7 @@ function buildMessage({ codes, week, draw }) {
   return lines.join('\n');
 }
 
-// Primer inicio: abre el sorteo de esta semana (con Comodines) hasta el próximo sábado 18:00.
+// Primer inicio: abre el sorteo de esta semana (con Comodines) hasta el próximo sábado 19:00.
 function seedFirstDraw(svc, db, now = new Date()) {
   if (db.prepare('SELECT COUNT(*) AS n FROM draws').get().n > 0) return null;
   const key = time.drawKey(now);

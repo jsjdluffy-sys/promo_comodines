@@ -48,10 +48,10 @@ test('división de urnas solo para marcados en Halloween', () => {
   assert.throws(() => splitDestination({ destination: 'dividir', toDeliver: 3, aCount: 4, halloweenEligible: true }), { code: 'INVALID_SPLIT' });
 });
 
-test('sugerencia de cierre: próximo sábado 18:00; el día cambia a medianoche de Chile', () => {
+test('sugerencia de cierre: próximo sábado 19:00; el día cambia a medianoche de Chile', () => {
   assert.equal(time.drawKey(cl('2026-11-11T10:00:00')), '2026-11-14'); // miércoles -> sábado
-  assert.equal(time.drawKey(cl('2026-11-14T17:59:59')), '2026-11-14');
-  assert.equal(time.drawKey(cl('2026-11-14T18:00:00')), '2026-11-21');
+  assert.equal(time.drawKey(cl('2026-11-14T18:59:59')), '2026-11-14');
+  assert.equal(time.drawKey(cl('2026-11-14T19:00:00')), '2026-11-21');
   assert.equal(time.dayKey(cl('2026-11-10T23:30:00')), '2026-11-10');
   assert.equal(time.dayKey(cl('2026-11-11T00:10:00')), '2026-11-11');
 });
@@ -67,7 +67,7 @@ function setup() {
   db.prepare("INSERT INTO agents (username,name,pass_hash,role) VALUES ('ana','Ana',?, 'agente')").run(hashPassword('x'));
   const svc = createService(db);
   const p = svc.createPlayer('juan_perez23', 1);
-  // Sorteo de esta semana: abre el lunes 09/11, cierra sábado 14/11 18:00, con Comodines
+  // Sorteo de esta semana: abre el lunes 09/11, cierra sábado 14/11 19:00, con Comodines
   seedFirstDraw(svc, db, cl('2026-11-09T09:00:00'));
   return { db, svc, p };
 }
@@ -81,7 +81,7 @@ test('flujo completo: varias entregas en el día, números únicos y tope', () =
   assert.deepEqual(r2.codes.B, ['B-0003', 'B-0004', 'B-0005']);
   assert.match(r2.message, /Recibiste 3 tickets/);
   assert.match(r2.message, /Para este sorteo llevas 5 para Premios/);
-  assert.match(r2.message, /tickets hasta el 14\/11\/2026 18:00/);
+  assert.match(r2.message, /tickets hasta el 14\/11\/2026 19:00/);
   assert.throws(() => svc.confirm({ playerId: p.id, total: 100000, destination: 'premios', agentId: 1, now }), { code: 'NO_CHANGE' });
   assert.throws(() => svc.confirm({ playerId: p.id, total: 90000, destination: 'premios', agentId: 1, now }), { code: 'AMOUNT_DECREASED' });
   // monto alto exige confirmación
@@ -106,13 +106,13 @@ test('Halloween: dividir entre urnas con numeración separada', () => {
   assert.throws(() => svc.setHalloween(p.id, false, { id: 1, role: 'agente' }), { code: 'FORBIDDEN' });
 });
 
-test('después del cierre del sábado 18:00 las entregas se bloquean', () => {
+test('después del cierre del sábado 19:00 las entregas se bloquean', () => {
   const { svc, p } = setup();
-  const r1 = svc.confirm({ playerId: p.id, total: 120000, destination: 'premios', agentId: 1, now: cl('2026-11-14T17:59:00') });
+  const r1 = svc.confirm({ playerId: p.id, total: 120000, destination: 'premios', agentId: 1, now: cl('2026-11-14T18:59:00') });
   assert.equal(r1.draw, '2026-11-14');
-  assert.throws(() => svc.preview(p.id, 300000, cl('2026-11-14T18:00:00')), { code: 'CLOSED' });
+  assert.throws(() => svc.preview(p.id, 300000, cl('2026-11-14T19:00:00')), { code: 'CLOSED' });
   assert.throws(() => svc.confirm({ playerId: p.id, total: 300000, destination: 'premios', agentId: 1, now: cl('2026-11-15T10:00:00') }), { code: 'CLOSED' });
-  assert.equal(svc.activeDraw(cl('2026-11-14T18:00:00')), null);
+  assert.equal(svc.activeDraw(cl('2026-11-14T19:00:00')), null);
   assert.equal(svc.currentOrLastDraw(cl('2026-11-15T10:00:00')).key, '2026-11-14');
 });
 
