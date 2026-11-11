@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tickets del Viernes</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Login -->
+  <section id="login" class="login hidden">
+    <form id="loginForm" class="card login-card">
+      <h1>🎟️ Tickets del Viernes</h1>
+      <p class="muted">Panel de Atención al Cliente</p>
+      <label>Usuario<input name="username" autocomplete="username" required></label>
+      <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
+      <button class="btn primary" type="submit">Entrar</button>
+      <p id="loginError" class="error"></p>
+    </form>
+  </section>
+
+  <!-- App -->
+  <div id="app" class="hidden">
+    <header class="topbar">
+      <div class="brand">🎟️ Tickets del Viernes</div>
+      <nav class="tabs">
+        <button data-tab="deliver" class="tab active">Entregar tickets</button>
+        <button data-tab="draw" class="tab">Sorteo de la semana</button>
+        <button data-tab="draws" class="tab admin-only">Sorteos</button>
+        <button data-tab="audit" class="tab admin-only">Auditoría</button>
+        <button data-tab="agents" class="tab admin-only">Agentes</button>
+      </nav>
+      <div class="who"><span id="agentName"></span> <button id="logout" class="btn ghost small">Salir</button></div>
+    </header>
+    <div id="statusBar" class="statusbar"></div>
+
+    <!-- Entregar -->
+    <main id="tab-deliver" class="tabpane deliver">
+      <aside class="card search">
+        <label class="lbl">Buscar usuario</label>
+        <input id="searchInput" placeholder="Escribe el usuario…" autocomplete="off">
+        <ul id="searchResults" class="results"></ul>
+        <div id="createBox" class="create hidden">
+          <p class="muted">No existe <b id="createName"></b>.</p>
+          <button id="createBtn" class="btn">+ Registrar usuario</button>
+        </div>
+      </aside>
+
+      <section id="playerPane" class="player">
+        <div class="empty card">Busca un usuario para entregar tickets.</div>
+      </section>
+    </main>
+
+    <!-- Sorteo -->
+    <main id="tab-draw" class="tabpane hidden">
+      <div class="card">
+        <div class="row between wrap">
+          <h2 id="drawLabel"></h2>
+          <div class="row wrap">
+            <select id="drawSelect" aria-label="Elegir sorteo"></select>
+            <a id="csvLink" class="btn">⬇ Lista de tickets (CSV)</a>
+          </div>
+        </div>
+        <div id="drawMeta" class="muted"></div>
+        <div class="urns">
+          <div class="urn urn-a"><div class="urn-title">🎃 Urna A · Comodines</div><div class="big" id="urnA">0</div><div class="muted" id="urnAp"></div></div>
+          <div class="urn urn-b"><div class="urn-title">🎰 Urna B · Ruleta</div><div class="big" id="urnB">0</div><div class="muted" id="urnBp"></div></div>
+        </div>
+        <div class="tablewrap"><table class="table"><thead><tr><th>Usuario</th><th>Urna</th><th>Tickets</th><th>Probabilidad en su urna</th></tr></thead>
+          <tbody id="drawPlayers"></tbody></table></div>
+      </div>
+    </main>
+
+    <!-- Sorteos (admin) -->
+    <main id="tab-draws" class="tabpane hidden">
+      <div class="card">
+        <h2>Anunciar nuevo sorteo</h2>
+        <p class="muted">Las entregas de tickets solo funcionan mientras hay un sorteo abierto. Al llegar el cierre se bloquean solas hasta que crees el siguiente.</p>
+        <form id="drawForm" class="drawform">
+          <label>Nombre<input name="name" placeholder="Sorteo del Viernes 20/11" required></label>
+          <label>Fecha del sorteo<input name="drawDate" type="date" required></label>
+          <label>Cierre de tickets (hora de Chile)<input name="cutoffLocal" type="datetime-local" required></label>
+          <label class="check"><input name="comodines" type="checkbox"> Incluye Comodines Halloween (Urna A)</label>
+          <button class="btn primary">Abrir sorteo ahora</button>
+        </form>
+        <p id="drawMsg" class="muted"></p>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h2>Historial de sorteos</h2>
+        <div class="tablewrap"><table class="table"><thead><tr><th>Sorteo</th><th>Fecha</th><th>Abre</th><th>Cierre</th><th>Comodines</th><th>Estado</th><th></th></tr></thead>
+          <tbody id="drawRows"></tbody></table></div>
+      </div>
+    </main>
+
+    <!-- Auditoría -->
+    <main id="tab-audit" class="tabpane hidden">
+      <div class="card">
+        <h2>Auditoría (últimos 200 movimientos)</h2>
+        <table class="table"><thead><tr><th>Fecha</th><th>Agente</th><th>Acción</th><th>Usuario</th><th>Detalle</th></tr></thead>
+          <tbody id="auditRows"></tbody></table>
+      </div>
+    </main>
+
+    <!-- Agentes -->
+    <main id="tab-agents" class="tabpane hidden">
+      <div class="card">
+        <h2>Agentes</h2>
+        <form id="agentForm" class="row wrap">
+          <input name="username" placeholder="usuario" required>
+          <input name="name" placeholder="Nombre visible" required>
+          <input name="password" type="password" placeholder="Contraseña (8+)" required>
+          <select name="role"><option value="agente">Agente</option><option value="admin">Admin</option></select>
+          <button class="btn primary">Crear agente</button>
+        </form>
+        <p id="agentMsg" class="muted"></p>
+        <table class="table"><thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th></th></tr></thead>
+          <tbody id="agentRows"></tbody></table>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>

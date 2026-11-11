@@ -1,0 +1,16 @@
+{
+  "name": "sorteo-viernes",
+  "version": "1.0.0",
+  "description": "Panel de entrega de tickets para el Sorteo de los Viernes",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "express": "^4.21.2"
+  },
+  "private": true
+}
