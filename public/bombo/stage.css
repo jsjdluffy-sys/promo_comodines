@@ -1,0 +1,102 @@
+/* Escenario 1920x1080 escalado a la ventana (OBS o navegador) */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #03060f; }
+body.transparent { background: transparent; }
+#stage {
+  position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px;
+  transform-origin: 0 0; font-family: "Segoe UI", Roboto, Arial, sans-serif; color: #fff;
+}
+#c { position: absolute; inset: 0; }
+.hidden { display: none !important; }
+
+#logo { position: absolute; left: 34px; top: 22px; height: 150px; filter: drop-shadow(0 0 18px rgba(34,184,255,.45)); }
+#title { position: absolute; left: 0; right: 0; top: 34px; text-align: center; pointer-events: none; transition: opacity .6s, transform .6s; }
+#title .t1 {
+  font-size: 92px; font-weight: 900; letter-spacing: 6px; line-height: 1;
+  background: linear-gradient(180deg, #ffffff 0%, #bfe6ff 45%, #22b8ff 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 4px 0 #062a5c) drop-shadow(0 0 22px rgba(34,184,255,.6));
+  font-style: italic;
+}
+#title .t2 { margin-top: 8px; font-size: 30px; font-weight: 700; color: #a9d8ff; letter-spacing: 2px; }
+#stage.focus #title { opacity: 0; transform: translateY(-30px); }
+
+#badge {
+  position: absolute; left: 34px; bottom: 24px; padding: 10px 18px; border-radius: 10px;
+  background: rgba(234,179,8,.18); border: 2px solid #eab308; color: #fde047; font-weight: 900; letter-spacing: 2px; font-size: 22px;
+}
+
+#introLabels .ilabel {
+  position: absolute; top: 1028px; width: 620px; margin-left: -310px; text-align: center;
+  font-size: 28px; font-weight: 800; letter-spacing: 1px; transition: opacity .6s;
+  text-shadow: 0 2px 10px rgba(0,0,0,.7);
+}
+#introLabels .ilabel span { color: #9fb6dd; font-weight: 600; }
+#introLabels .a { color: #ffb36b; }
+#introLabels .b { color: #7fd6ff; }
+#stage.focus #introLabels, #stage.results #introLabels { opacity: 0; }
+
+/* Panel lateral en escena de bombo */
+#panel { position: absolute; left: 1190px; top: 0; width: 690px; height: 1080px; }
+.ptitle {
+  position: absolute; top: 42px; left: 0; right: 0; text-align: center; font-size: 46px; font-weight: 900; letter-spacing: 3px;
+  font-style: italic; text-shadow: 0 0 22px currentColor;
+}
+#panel.a .ptitle { color: #ffb36b; }
+#panel.b .ptitle { color: #7fd6ff; }
+.prizeCard {
+  position: absolute; top: 118px; left: 40px; right: 40px; padding: 18px 22px 20px; text-align: center; border-radius: 22px;
+  background: linear-gradient(180deg, rgba(20,40,90,.85), rgba(8,16,40,.92));
+  border: 2px solid rgba(127,214,255,.55); box-shadow: 0 0 40px rgba(34,184,255,.25), inset 0 0 30px rgba(34,184,255,.12);
+  transition: transform .4s;
+}
+#panel.a .prizeCard { border-color: rgba(255,138,31,.7); box-shadow: 0 0 40px rgba(255,138,31,.25), inset 0 0 30px rgba(168,85,247,.15); }
+.prizeCard .k { font-size: 22px; letter-spacing: 4px; color: #9fb6dd; font-weight: 800; }
+.prizeCard .v {
+  margin-top: 4px; font-size: 76px; font-weight: 900; line-height: 1.05;
+  background: linear-gradient(180deg, #fff6c9, #ffd23f 55%, #ff9f1a); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 3px 0 rgba(90,40,0,.6)) drop-shadow(0 0 16px rgba(255,210,63,.45));
+}
+.prizeCard .r { margin-top: 2px; font-size: 22px; color: #c9d8f5; }
+.prizeCard.pulse { animation: pulse .6s ease; }
+@keyframes pulse { 50% { transform: scale(1.06); } }
+
+.winner {
+  position: absolute; top: 540px; left: 40px; right: 40px; text-align: center; padding: 16px 20px 18px; border-radius: 22px;
+  background: radial-gradient(120% 140% at 50% 0%, rgba(255,210,63,.28), rgba(10,18,44,.94) 60%);
+  border: 3px solid #ffd23f; box-shadow: 0 0 60px rgba(255,210,63,.45);
+  animation: winIn .7s cubic-bezier(.2,1.4,.4,1);
+}
+@keyframes winIn { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.winner .k { font-size: 30px; font-weight: 900; letter-spacing: 6px; color: #ffd23f; }
+.winner .user { font-size: 60px; font-weight: 900; line-height: 1.1; }
+.winner .code { font-size: 28px; color: #b9d3ff; font-family: ui-monospace, Consolas, monospace; letter-spacing: 2px; }
+.prizeCard .v { white-space: nowrap; }
+.winner .prize { margin-top: 6px; font-size: 40px; font-weight: 900; color: #2ee59d; text-shadow: 0 0 18px rgba(46,229,157,.6); }
+
+.wlist { position: absolute; top: 812px; left: 40px; right: 40px; bottom: 30px; }
+.wlist .k { font-size: 22px; letter-spacing: 4px; color: #9fb6dd; font-weight: 800; margin-bottom: 8px; }
+.wlist ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+.wlist li {
+  display: flex; justify-content: space-between; gap: 8px; padding: 7px 12px; border-radius: 10px; font-size: 20px;
+  background: rgba(20,36,80,.7); border: 1px solid rgba(127,214,255,.25); white-space: nowrap; overflow: hidden;
+}
+.wlist li b { color: #ffd23f; }
+.wlist li.new { animation: winIn .6s ease; border-color: #ffd23f; }
+
+/* Resultados finales */
+#results { position: absolute; inset: 200px 120px 60px; }
+.rtitle { text-align: center; font-size: 70px; font-weight: 900; font-style: italic; letter-spacing: 4px; color: #ffd23f; text-shadow: 0 0 30px rgba(255,210,63,.6); }
+.rcols { display: grid; grid-template-columns: 1fr 1.4fr; gap: 40px; margin-top: 30px; }
+.rcol { background: rgba(8,16,40,.85); border-radius: 22px; padding: 22px 26px; border: 2px solid rgba(127,214,255,.4); }
+.rcol.a { border-color: rgba(255,138,31,.6); }
+.rcol h3 { margin: 0 0 14px; font-size: 34px; }
+.rcol ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rcol.b ol { grid-template-columns: 1fr 1fr; }
+.rcol li { display: flex; justify-content: space-between; gap: 10px; font-size: 24px; padding: 8px 14px; border-radius: 10px; background: rgba(30,50,100,.55); }
+.rcol li b { color: #ffd23f; }
+
+#soundHint {
+  position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); padding: 12px 20px; border-radius: 12px;
+  background: rgba(0,0,0,.6); font-size: 22px; cursor: pointer;
+}

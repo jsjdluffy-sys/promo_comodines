@@ -70,6 +70,7 @@ El login se bloquea 15 minutos tras 8 intentos fallidos por usuario.
 - **Entregar tickets:** el flujo de arriba.
 - **Sorteo de la semana:** elige un sorteo (actual o anteriores) para ver totales por urna, tickets y probabilidad de cada jugador, y descargar la lista completa en CSV para publicarla antes del sorteo.
 - **Sorteos (admin):** anunciar un nuevo sorteo (nombre, fecha, cierre y si tiene Comodines), **Editar** (nombre, fecha y cierre) o cerrar ahora.
+- **Anular tickets sueltos (admin):** en la ficha del usuario, haz clic en los tickets y "Anular seleccionados"; se indica el total real del día y el jugador recupera ese cupo.
 - **Anular entregas (admin):** en la ficha del usuario, botón **Anular** por entrega o **Anular todas sus entregas**. Se pide un motivo; los tickets salen del sorteo y del CSV, el tope del día se recalcula y todo queda en la auditoría. Los números anulados no se reutilizan.
 - **Auditoría / Agentes:** solo para admin; crear y desactivar agentes.
 
@@ -79,10 +80,32 @@ El login se bloquea 15 minutos tras 8 intentos fallidos por usuario.
 npm test
 ```
 
+## Sorteo en vivo (pestaña 🎬 Stream, solo admin)
+
+**En OBS:** agrega una *Fuente de navegador* con la URL `http://localhost:3000/overlay.html`, ancho 1920, alto 1080,
+y marca **"Controlar audio vía OBS"**. Para usarla encima de tu propio fondo: `overlay.html?transparent=1`.
+
+**Durante el stream:**
+1. **Modo:** 🧪 Ensayo (para practicar; no cuenta y en pantalla sale "MODO ENSAYO") o 🔴 Real (solo después del cierre).
+2. **Escena:** 🏠 Inicio (los dos bombos) → 🎃 Bombo Comodines → 🎁 Bombo Premios → 🏆 Resultados.
+3. **Premio:** en el Bombo Premios eliges qué se sortea (ej. Boost +20%); en Comodines se elige solo.
+4. **🌀 Mezclar** y **🎱 SACAR PELOTITA**: suspenso, la pelotita sube por el tubo, se revela el ganador con fanfarria y confeti.
+   Las demás pelotitas del ganador salen de ese bombo (máximo 1 premio por persona por bombo).
+
+**Aleatoriedad:** cada extracción usa el generador criptográfico del sistema (`crypto.randomInt`) sobre todos los
+tickets vigentes del bombo; cada ticket tiene exactamente la misma probabilidad. Cada resultado queda en la auditoría
+con el tamaño del bombo y la posición elegida. La animación solo muestra el resultado.
+
+**Premios por defecto:** 🎃 Comodín Halloween ×5 · 🎁 $25.000, $15.000, $10.000, $5.000 (×1 c/u), Boost x2 ×2,
+Boost +20% ×5, Boost +30% ×3, Boost +40% ×2. Se editan en la misma pestaña.
+
+## Página pública (Netlify)
+
+En la pestaña Stream, **🌐 Generar página pública** crea la carpeta `sitio-publico/` (bombos girando con los tickets,
+buscador por usuario o ticket, lista completa y premios; usuarios enmascarados como `Use***52`).
+Para publicarla: app.netlify.com → tu sitio → **Deploys** → arrastra la carpeta `sitio-publico`.
+Genérala después del cierre y otra vez al terminar el sorteo para mostrar los ganadores.
+
 ## Siguientes fases
 
-2. **Premios y extracción verificable:** configurar los premios de cada bombo, extraer ganadores con un
-   resultado comprobable (hash publicado antes del stream) y página verificadora.
-3. **Overlay OBS con dos bombos de esferas con físicas:** 🎃 Bombo Comodines y 🎁 Bombo Premios,
-   controlados desde el panel durante el stream.
-4. **Entrega de premios:** inventario por jugador (comodines y boosters), pagos de efectivo y calculadora de boosts.
+- **Entrega de premios:** inventario por jugador (comodines y boosters, 7 días de validez), pagos de efectivo y calculadora de boosts.

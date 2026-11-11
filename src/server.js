@@ -6,12 +6,18 @@ const time = require('./time');
 const { openDb } = require('./db');
 const { createService, seedFirstDraw, hashPassword, verifyPassword } = require('./service');
 const { RuleError } = require('./rules');
+const { createDrawEngine } = require('./drawEngine');
+const { exportPublicSite } = require('./publicSite');
 
 function createApp(db) {
   const svc = createService(db);
   const app = express();
   app.use(express.json({ limit: '50kb' }));
   app.use(express.static(path.join(__dirname, '..', 'public')));
+  // Motor de físicas servido localmente (funciona sin internet en OBS).
+  app.get('/vendor/matter.min.js', (req, res) =>
+    res.sendFile(path.join(path.dirname(require.resolve('matter-js')), 'matter.min.js')));
+  app.use('/sitio-publico', express.static(path.join(__dirname, '..', 'sitio-publico')));
 
   // ---- Autenticación ----
   const getCookie = (req, name) => {
@@ -107,6 +113,9 @@ function createApp(db) {
   app.post('/api/players/:id/halloween', auth, handle((req) =>
     svc.setHalloween(Number(req.params.id), !!req.body?.eligible, req.agent)));
 
+  app.post('/api/tickets/void', auth, adminOnly, handle((req) =>
+    svc.voidTickets(Array.isArray(req.body?.codes) ? req.body.codes.map(String) : [], String(req.body?.draw || ''), req.body?.reason,
+      parseAmount(req.body?.correctedTotal), req.agent)));
   app.post('/api/claims/:id/void', auth, adminOnly, handle((req) =>
     svc.voidClaim(Number(req.params.id), req.body?.reason, req.agent)));
   app.post('/api/players/:id/void-all', auth, adminOnly, handle((req) =>
@@ -170,6 +179,124 @@ function createApp(db) {
     if (!req.body?.active) db.prepare('DELETE FROM sessions WHERE agent_id = ?').run(Number(req.params.id));
     svc.audit(req.agent.id, req.body?.active ? 'agent.enable' : 'agent.disable', null, { agentId: Number(req.params.id) });
     return { ok: true };
+  }));
+
+  // ================= SORTEO EN VIVO =================
+  const engine = createDrawEngine(db, svc);
+
+  // Estado de la transmisión (en memoria). La pantalla de OBS lo recibe en tiempo real por SSE.
+  const live = {
+    drawKey: null, scene: 'intro', mixing: false, prizeId: null, rehearsal: true,
+    last: null, busyUntil: 0, rev: 0,
+  };
+  const clients = new Set();
+  const liveDraw = () => live.drawKey || svc.currentOrLastDraw()?.key || null;
+  function publicState() {
+    return {
+      drawKey: liveDraw(), scene: live.scene, mixing: live.mixing, prizeId: live.prizeId,
+      rehearsal: live.rehearsal, last: live.last, rev: live.rev,
+    };
+  }
+  function broadcast(type, data) {
+    live.rev += 1;
+    const msg = `event: ${type}\ndata: ${JSON.stringify({ ...data, state: publicState() })}\n\n`;
+    for (const res of clients) res.write(msg);
+  }
+
+  // Público (solo datos enmascarados): pantalla de OBS en este PC.
+  app.get('/api/live/stream', (req, res) => {
+    res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+    res.flushHeaders();
+    res.write(`event: hello\ndata: ${JSON.stringify({ state: publicState() })}\n\n`);
+    clients.add(res);
+    const ping = setInterval(() => res.write(': ping\n\n'), 20000);
+    req.on('close', () => { clearInterval(ping); clients.delete(res); });
+  });
+  app.get('/api/live/snapshot', handle(() => {
+    const key = liveDraw();
+    if (!key) throw new RuleError('NOT_FOUND', 'No hay sorteos.');
+    return { ...engine.snapshot(key, live.rehearsal), state: publicState() };
+  }));
+
+  // Control (solo admin).
+  app.get('/api/live/control', auth, adminOnly, handle(() => {
+    const key = liveDraw();
+    const d = key ? svc.listDraws().find((x) => x.key === key) : null;
+    return {
+      state: publicState(), draw: d, draws: svc.listDraws(),
+      prizes: key ? engine.prizes(key, live.rehearsal) : [],
+      results: key ? engine.results(key, live.rehearsal) : [],
+      counts: key ? { A: engine.pool(key, 'A', live.rehearsal).length, B: engine.pool(key, 'B', live.rehearsal).length } : { A: 0, B: 0 },
+      overlayClients: clients.size,
+    };
+  }));
+
+  app.post('/api/live/action', auth, adminOnly, handle((req) => {
+    const b = req.body || {};
+    switch (b.action) {
+      case 'draw':
+        live.drawKey = String(b.drawKey || '') || null; live.last = null; live.prizeId = null;
+        broadcast('reload', {}); break;
+      case 'mode':
+        live.rehearsal = !!b.rehearsal; live.last = null; live.prizeId = null;
+        svc.audit(req.agent.id, live.rehearsal ? 'live.mode.rehearsal' : 'live.mode.real', null, { draw: liveDraw() });
+        broadcast('reload', {}); break;
+      case 'scene':
+        if (!['intro', 'A', 'B', 'results'].includes(b.scene)) throw new RuleError('INVALID', 'Escena inválida.');
+        live.scene = b.scene; live.mixing = false; live.prizeId = null;
+        broadcast('scene', {}); break;
+      case 'mix':
+        live.mixing = !!b.on; broadcast('mix', {}); break;
+      case 'prize':
+        live.prizeId = b.prizeId ? Number(b.prizeId) : null; broadcast('prize', {}); break;
+      case 'extract': {
+        if (Date.now() < live.busyUntil) throw new RuleError('BUSY', 'Espera a que termine la animación de la pelotita anterior.');
+        if (live.scene !== 'A' && live.scene !== 'B') throw new RuleError('INVALID', 'Primero muestra el Bombo Comodines o el Bombo Premios.');
+        const key = liveDraw();
+        let prizeId = Number(b.prizeId || live.prizeId);
+        if (!prizeId) { // un solo premio disponible en el bombo: se usa ese
+          const avail = engine.prizes(key, live.rehearsal).filter((p) => p.urn === live.scene && p.remaining > 0);
+          if (avail.length === 1) prizeId = avail[0].id;
+        }
+        const result = engine.extract({ drawKey: key, urn: live.scene, prizeId, rehearsal: live.rehearsal, agent: req.agent });
+        live.last = result; live.mixing = true; live.busyUntil = Date.now() + 9000;
+        broadcast('extract', { result: { ...result, username: undefined } }); // la pantalla solo recibe el usuario enmascarado
+        return result;
+      }
+      case 'clear-last':
+        live.last = null; broadcast('clear', {}); break;
+      default:
+        throw new RuleError('INVALID', 'Acción inválida.');
+    }
+    return publicState();
+  }));
+
+  app.get('/api/draws/:key/prizes', auth, handle((req) => engine.prizes(req.params.key, false)));
+  app.post('/api/draws/:key/prizes', auth, adminOnly, handle((req) => {
+    const r = engine.savePrize(req.params.key, req.body || {}, req.agent);
+    broadcast('reload', {});
+    return r;
+  }));
+  app.post('/api/draws/:key/prizes/:id/delete', auth, adminOnly, handle((req) => {
+    const r = engine.deletePrize(req.params.key, Number(req.params.id), req.agent);
+    broadcast('reload', {});
+    return r;
+  }));
+  app.get('/api/draws/:key/results', auth, handle((req) => engine.results(req.params.key, req.query.rehearsal === '1')));
+  app.post('/api/extractions/:id/void', auth, adminOnly, handle((req) => {
+    const r = engine.voidExtraction(Number(req.params.id), req.body?.reason, req.agent);
+    live.last = null; broadcast('reload', {});
+    return r;
+  }));
+  app.post('/api/draws/:key/rehearsal/clear', auth, adminOnly, handle((req) => {
+    const r = engine.clearRehearsal(req.params.key, req.agent);
+    live.last = null; broadcast('reload', {});
+    return r;
+  }));
+  app.post('/api/draws/:key/export', auth, adminOnly, handle((req) => {
+    const r = exportPublicSite(engine.snapshot(req.params.key, false), path.join(__dirname, '..', 'sitio-publico'));
+    svc.audit(req.agent.id, 'public.export', null, { draw: req.params.key, tickets: r.tickets });
+    return r;
   }));
 
   return app;

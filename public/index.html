@@ -26,6 +26,7 @@
       <nav class="tabs">
         <button data-tab="deliver" class="tab active">Entregar tickets</button>
         <button data-tab="draw" class="tab">Sorteo de la semana</button>
+        <button data-tab="stream" class="tab admin-only">🎬 Stream</button>
         <button data-tab="draws" class="tab admin-only">Sorteos</button>
         <button data-tab="audit" class="tab admin-only">Auditoría</button>
         <button data-tab="agents" class="tab admin-only">Agentes</button>
@@ -68,6 +69,85 @@
         </div>
         <div class="tablewrap"><table class="table"><thead><tr><th>Usuario</th><th>Urna</th><th>Tickets</th><th>Probabilidad en su urna</th></tr></thead>
           <tbody id="drawPlayers"></tbody></table></div>
+      </div>
+    </main>
+
+    <!-- Stream (admin) -->
+    <main id="tab-stream" class="tabpane hidden">
+      <div class="card">
+        <div class="row between wrap">
+          <div class="row wrap">
+            <label class="inline">Sorteo <select id="stDraw"></select></label>
+            <div class="seg" id="stMode">
+              <button data-mode="1">🧪 Ensayo</button>
+              <button data-mode="0">🔴 Real</button>
+            </div>
+          </div>
+          <div class="row wrap">
+            <span class="muted">Pantalla OBS:</span>
+            <code id="stUrl"></code>
+            <button id="stCopy" class="btn small">📋 Copiar</button>
+            <a id="stOpen" class="btn small" target="_blank">↗ Abrir</a>
+            <span id="stClients" class="pill"></span>
+          </div>
+        </div>
+        <div id="stModeInfo" class="muted" style="margin-top:8px"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>1. Escena en pantalla</h3>
+        <div class="scenes" id="stScenes">
+          <button data-scene="intro">🏠 Inicio<small>los dos bombos</small></button>
+          <button data-scene="A">🎃 Bombo Comodines<small id="stCntA"></small></button>
+          <button data-scene="B">🎁 Bombo Premios<small id="stCntB"></small></button>
+          <button data-scene="results">🏆 Resultados<small>todos los ganadores</small></button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px" id="stDrawBox">
+        <h3>2. Elige el premio y saca la pelotita</h3>
+        <div id="stHint" class="muted">Muestra el Bombo Comodines o el Bombo Premios para sortear.</div>
+        <div class="prizes" id="stPrizes"></div>
+        <div class="row wrap" style="margin-top:14px">
+          <button id="stMix" class="btn big2">🌀 Mezclar</button>
+          <button id="stExtract" class="btn primary big2 grow">🎱 SACAR PELOTITA</button>
+        </div>
+        <div id="stLast" class="last hidden"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="row between wrap">
+          <h3 style="margin:0">Ganadores <span id="stResMode" class="pill"></span></h3>
+          <div class="row wrap">
+            <button id="stClearRehearsal" class="btn small">🧹 Borrar resultados de ensayo</button>
+          </div>
+        </div>
+        <div class="tablewrap"><table class="table"><thead><tr><th>#</th><th>Bombo</th><th>Premio</th><th>Usuario</th><th>Ticket</th><th>Hora</th><th></th></tr></thead>
+          <tbody id="stResults"></tbody></table></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Premios de este sorteo</h3>
+        <div class="tablewrap"><table class="table"><thead><tr><th>Bombo</th><th>Premio</th><th>Tipo</th><th>Cantidad</th><th>Sorteados</th><th></th></tr></thead>
+          <tbody id="stPrizeRows"></tbody></table></div>
+        <form id="stPrizeForm" class="row wrap" style="margin-top:10px">
+          <select name="urn"><option value="B">🎁 Premios</option><option value="A">🎃 Comodines</option></select>
+          <input name="label" placeholder="Nombre (ej. $2.000)" required>
+          <select name="kind"><option value="cash">Efectivo</option><option value="boost">Boost</option><option value="comodin">Comodín</option></select>
+          <input name="value" type="number" min="0" placeholder="Monto o % (opcional)">
+          <input name="qty" type="number" min="1" value="1" required style="max-width:90px">
+          <button class="btn">+ Agregar premio</button>
+        </form>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Página pública (Netlify)</h3>
+        <p class="muted">Genera la página donde los jugadores ven sus pelotitas girando y la lista de tickets. Hazlo después del cierre (sábado 19:00) y otra vez al terminar el sorteo para publicar los ganadores.</p>
+        <div class="row wrap">
+          <button id="stExport" class="btn primary">🌐 Generar página pública</button>
+          <a href="/sitio-publico/" target="_blank" class="btn">👀 Ver cómo queda</a>
+        </div>
+        <div id="stExportMsg" class="muted" style="margin-top:8px"></div>
       </div>
     </main>
 

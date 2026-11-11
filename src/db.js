@@ -79,6 +79,38 @@ CREATE TABLE IF NOT EXISTS tickets (
 );
 CREATE INDEX IF NOT EXISTS idx_tickets_player_draw ON tickets(player_id, draw_key);
 
+-- Premios de cada bombo (A = Comodines, B = Premios).
+CREATE TABLE IF NOT EXISTS prizes (
+  id         INTEGER PRIMARY KEY,
+  draw_key   TEXT NOT NULL,
+  urn        TEXT NOT NULL CHECK (urn IN ('A','B')),
+  label      TEXT NOT NULL,
+  kind       TEXT NOT NULL CHECK (kind IN ('comodin','cash','boost')),
+  value      INTEGER NOT NULL DEFAULT 0,   -- monto en efectivo o % de boost (100 = x2)
+  qty        INTEGER NOT NULL CHECK (qty >= 0),
+  sort       INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_prizes_draw ON prizes(draw_key, urn);
+
+-- Cada pelotita extraída en el stream. rehearsal = 1 para ensayos (no cuentan).
+CREATE TABLE IF NOT EXISTS extractions (
+  id           INTEGER PRIMARY KEY,
+  draw_key     TEXT NOT NULL,
+  urn          TEXT NOT NULL CHECK (urn IN ('A','B')),
+  prize_id     INTEGER NOT NULL REFERENCES prizes(id),
+  ticket_id    INTEGER NOT NULL REFERENCES tickets(id),
+  player_id    INTEGER NOT NULL REFERENCES players(id),
+  code         TEXT NOT NULL,
+  rehearsal    INTEGER NOT NULL DEFAULT 0,
+  pool_size    INTEGER NOT NULL,
+  pick_index   INTEGER NOT NULL,
+  created_by   INTEGER REFERENCES agents(id),
+  created_at   TEXT NOT NULL,
+  voided_at    TEXT,
+  void_reason  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_extractions_draw ON extractions(draw_key, urn, rehearsal);
+
 CREATE TABLE IF NOT EXISTS audit_log (
   id          INTEGER PRIMARY KEY,
   agent_id    INTEGER REFERENCES agents(id),

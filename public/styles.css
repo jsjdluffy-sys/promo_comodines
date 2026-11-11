@@ -160,5 +160,30 @@ label.check input { width: auto; margin: 0; }
 .voided td { color: var(--muted); text-decoration: line-through; }
 .voided td.void-info { text-decoration: none; color: #fca5a5; font-size: .85rem; }
 .table input { padding: 6px 8px; min-width: 120px; }
+.inline { display: inline-flex; gap: 8px; align-items: center; margin: 0; color: var(--text); }
+.inline select { width: auto; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { background: var(--panel-2); color: var(--muted); border: 0; padding: 9px 14px; font: inherit; cursor: pointer; }
+.seg button.on { background: var(--accent); color: #fff; font-weight: 700; }
+.seg button.on[data-mode="0"] { background: var(--red); }
+.pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .8rem; border: 1px solid var(--line); color: var(--muted); }
+.scenes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 760px) { .scenes { grid-template-columns: 1fr 1fr; } }
+.scenes button, .prizes button {
+  background: var(--panel-2); color: var(--text); border: 2px solid var(--line); border-radius: 12px; padding: 14px 10px;
+  font: inherit; font-weight: 700; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.scenes button small, .prizes button small { color: var(--muted); font-weight: 500; font-size: .8rem; }
+.scenes button.on { border-color: var(--accent); background: rgba(139,92,246,.2); }
+.prizes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
+.prizes button.on { border-color: #ffd23f; background: rgba(255,210,63,.14); }
+.prizes button:disabled { opacity: .35; cursor: not-allowed; }
+.btn.big2 { padding: 16px 22px; font-size: 1.1rem; }
+.btn.grow { flex: 1; justify-content: center; }
+.btn.mixing { background: #0e7490; border-color: #22d3ee; }
+.last { margin-top: 14px; padding: 14px; border-radius: 12px; border: 2px solid #ffd23f; background: rgba(255,210,63,.08); font-size: 1.1rem; }
+.chip.sel { outline: 2px solid var(--red); background: rgba(239,68,68,.2); }
+.chip.voided { text-decoration: line-through; opacity: .5; }
+.chip.clickable { cursor: pointer; }
 .blocked-card { border-color: var(--red); text-align: center; padding: 28px; }
 @media (max-width: 600px) { .urns { grid-template-columns: 1fr; } #drawSelect { min-width: 0; width: 100%; } }

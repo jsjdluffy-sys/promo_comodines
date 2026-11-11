@@ -174,3 +174,103 @@ test('editar sorteo: cambiar cierre al sábado 18:00 y la fecha mueve los ticket
   assert.equal(svc.activeDraw(cl('2026-11-14T18:00:00')), null);
   assert.throws(() => svc.editDraw('2026-11-14', { cutoffLocal: '2026-11-10T18:00' }, admin, now), { code: 'INVALID' });
 });
+
+// ================= Sorteo en vivo =================
+const { createDrawEngine } = require('../src/drawEngine');
+
+function setupDraw() {
+  const ctx = setup();
+  const engine = createDrawEngine(ctx.db, ctx.svc);
+  const admin = { id: 1, role: 'admin' };
+  return { ...ctx, engine, admin };
+}
+
+test('premios por defecto del sorteo', () => {
+  const { engine } = setupDraw();
+  const pr = engine.prizes('2026-11-14');
+  assert.deepEqual(pr.filter((p) => p.urn === 'A').map((p) => [p.label, p.qty]), [['Comodín Halloween', 5]]);
+  assert.deepEqual(pr.filter((p) => p.urn === 'B').map((p) => [p.label, p.qty]), [
+    ['$25.000', 1], ['$15.000', 1], ['$10.000', 1], ['$5.000', 1],
+    ['Boost x2', 2], ['Boost +20%', 5], ['Boost +30%', 3], ['Boost +40%', 2],
+  ]);
+});
+
+test('extracción: real solo después del cierre, 1 premio por persona por bombo, ensayo aparte', () => {
+  const { svc, engine, admin, db } = setupDraw();
+  const now = cl('2026-11-11T10:00:00');
+  const ids = ['ana', 'beto', 'carla'].map((u) => svc.createPlayer(u, 1).id);
+  svc.confirm({ playerId: ids[0], total: 200000, destination: 'dividir', aCount: 5, agentId: 1, now }); // 5 A + 5 B
+  svc.confirm({ playerId: ids[1], total: 20000, destination: 'premios', agentId: 1, now });
+  svc.confirm({ playerId: ids[2], total: 20000, destination: 'comodin', agentId: 1, now });
+  const pr = engine.prizes('2026-11-14');
+  const p25 = pr.find((p) => p.label === '$25.000'), p20 = pr.find((p) => p.label === 'Boost +20%');
+  // antes del cierre: solo ensayo
+  assert.throws(() => engine.extract({ drawKey: '2026-11-14', urn: 'B', prizeId: p25.id, rehearsal: false, agent: admin, now }), { code: 'NOT_CLOSED' });
+  const reh = engine.extract({ drawKey: '2026-11-14', urn: 'B', prizeId: p25.id, rehearsal: true, agent: admin, now });
+  assert.ok(reh.rehearsal);
+  // después del cierre: real. Bombo B tiene 2 jugadores -> 2 extracciones posibles, luego vacío
+  const after = cl('2026-11-14T19:30:00');
+  const w1 = engine.extract({ drawKey: '2026-11-14', urn: 'B', prizeId: p25.id, rehearsal: false, agent: admin, now: after });
+  const w2 = engine.extract({ drawKey: '2026-11-14', urn: 'B', prizeId: p20.id, rehearsal: false, agent: admin, now: after });
+  assert.notEqual(w1.p, w2.p);
+  assert.throws(() => engine.extract({ drawKey: '2026-11-14', urn: 'B', prizeId: p20.id, rehearsal: false, agent: admin, now: after }), { code: 'EMPTY' });
+  // premio agotado
+  assert.equal(engine.prizes('2026-11-14').find((p) => p.id === p25.id).remaining, 0);
+  // el ensayo no afecta lo real; ana puede ganar también en el bombo A
+  const pa = pr.find((p) => p.urn === 'A');
+  const a1 = engine.extract({ drawKey: '2026-11-14', urn: 'A', prizeId: pa.id, rehearsal: false, agent: admin, now: after });
+  assert.ok([ids[0], ids[2]].includes(a1.p));
+  // el ticket ganador no se puede anular
+  assert.throws(() => svc.voidTickets([w1.code], '2026-11-14', 'x prueba', 0, admin), { code: 'WINNER' });
+  // anular extracción: el jugador vuelve a participar
+  engine.voidExtraction(w2.id, 'error de prueba', admin);
+  assert.equal(engine.pool('2026-11-14', 'B', false).length > 0, true);
+  engine.clearRehearsal('2026-11-14', admin);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM extractions WHERE rehearsal = 1').get().n, 0);
+});
+
+test('aleatoriedad: cada ticket tiene la misma probabilidad (simulación)', () => {
+  const { svc, engine, admin, db } = setupDraw();
+  const now = cl('2026-11-11T10:00:00');
+  // ana 10 tickets, beto 5, carla 1 -> esperado 62,5 % / 31,25 % / 6,25 %
+  const pl = [['ana', 200000], ['beto', 100000], ['carla', 20000]].map(([u, t]) => {
+    const id = svc.createPlayer(u, 1).id;
+    svc.confirm({ playerId: id, total: t, destination: 'premios', agentId: 1, now });
+    return id;
+  });
+  const pz = svc;
+  void pz;
+  const p = db.prepare("INSERT INTO prizes (draw_key, urn, label, kind, value, qty) VALUES ('2026-11-14','B','Test','cash',1,100000)").run().lastInsertRowid;
+  const counts = {};
+  const N = 16000;
+  for (let i = 0; i < N; i++) {
+    const r = engine.extract({ drawKey: '2026-11-14', urn: 'B', prizeId: p, rehearsal: true, agent: admin, now });
+    counts[r.p] = (counts[r.p] || 0) + 1;
+    db.prepare('DELETE FROM extractions WHERE id = ?').run(r.id);
+  }
+  const share = pl.map((id) => counts[id] / N);
+  assert.ok(Math.abs(share[0] - 10 / 16) < 0.02, `ana ${share[0]}`);
+  assert.ok(Math.abs(share[1] - 5 / 16) < 0.02, `beto ${share[1]}`);
+  assert.ok(Math.abs(share[2] - 1 / 16) < 0.012, `carla ${share[2]}`);
+  assert.ok(counts[pl[2]] > 0, 'quien tiene 1 ticket también gana');
+});
+
+test('anular tickets sueltos devuelve el cupo del día', () => {
+  const { svc, admin, p } = setupDraw();
+  const now = cl('2026-11-11T10:00:00');
+  const r = svc.confirm({ playerId: p.id, total: 200000, destination: 'premios', agentId: 1, now });
+  assert.equal(r.calc.toDeliver, 10);
+  assert.throws(() => svc.voidTickets([r.codes.B[0]], '2026-11-14', 'x', 0, admin), { code: 'INVALID' });
+  // el agente escribió 200.000 pero el total real era 160.000 (8 tickets): se anulan 2
+  assert.throws(() => svc.voidTickets([r.codes.B[9]], '2026-11-14', 'Entregados de más', 160000, admin, now), { code: 'INVALID' });
+  svc.voidTickets([r.codes.B[8], r.codes.B[9]], '2026-11-14', 'Entregados de más', 160000, admin, now);
+  const s = svc.summary(p.id, now);
+  assert.equal(s.week.B.length, 8);
+  assert.equal(s.today.given, 8);
+  assert.equal(s.today.lastTotal, 160000);
+  assert.deepEqual(s.voidedTickets.map((t) => t.code), ['B-0009', 'B-0010']);
+  // con el mismo total no recibe nada; si recarga 40.000 más (total 200.000) recibe 2
+  assert.equal(svc.preview(p.id, 160000, now).toDeliver, 0);
+  assert.equal(svc.preview(p.id, 200000, now).toDeliver, 2);
+  assert.equal(svc.preview(p.id, 200000, now).increase, 40000);
+});

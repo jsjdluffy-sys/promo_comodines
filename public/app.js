@@ -81,7 +81,7 @@
   document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === b));
     document.querySelectorAll('.tabpane').forEach((p) => p.classList.toggle('hidden', p.id !== 'tab-' + b.dataset.tab));
-    ({ draw: loadDraw, draws: loadDraws, audit: loadAudit, agents: loadAgents }[b.dataset.tab] || (() => {}))();
+    ({ draw: loadDraw, draws: loadDraws, audit: loadAudit, agents: loadAgents, stream: loadStream }[b.dataset.tab] || (() => {}))();
   }));
 
   // ---------- Búsqueda ----------
@@ -181,17 +181,19 @@
 
       <div class="card">
         <h3>Tickets ${s.draw ? `· ${esc(s.draw.name)} (${fmtDay(s.draw.key)})` : ''}</h3>
-        <div class="chips">${s.week.A.map((t) => `<span class="chip a">${esc(t.code)}</span>`).join('')}${s.week.B.map((t) => `<span class="chip b">${esc(t.code)}</span>`).join('') || (s.week.A.length ? '' : '<span class="muted">Aún no tiene tickets en este sorteo.</span>')}</div>
+        ${me.role === 'admin' && (s.week.A.length || s.week.B.length) ? '<div class="muted" style="font-size:.85rem">Para anular tickets sueltos (por ej. entregados de más), haz clic en ellos y luego en "Anular seleccionados".</div>' : ''}
+        <div class="chips">${s.week.A.map((t) => `<span class="chip a ${me.role === 'admin' ? 'clickable' : ''}" data-code="${esc(t.code)}">${esc(t.code)}</span>`).join('')}${s.week.B.map((t) => `<span class="chip b ${me.role === 'admin' ? 'clickable' : ''}" data-code="${esc(t.code)}">${esc(t.code)}</span>`).join('') || (s.week.A.length ? '' : '<span class="muted">Aún no tiene tickets en este sorteo.</span>')}${(s.voidedTickets || []).map((t) => `<span class="chip voided" title="Anulado">${esc(t.code)}</span>`).join('')}</div>
+        ${me.role === 'admin' ? '<button id="voidSelBtn" class="btn small hidden" style="margin-top:8px">🗑️ Anular seleccionados</button>' : ''}
         <div class="row between wrap" style="margin-top:18px">
           <h3 style="margin:0">Historial de entregas</h3>
           ${me.role === 'admin' && s.history.some((h) => !h.voided_at) ? '<button id="voidAllBtn" class="btn small">🗑️ Anular todas sus entregas</button>' : ''}
         </div>
         <div class="tablewrap"><table class="table"><thead><tr><th>Fecha</th><th>Total reportado</th><th>Tickets</th><th>A / B</th><th>Agente</th>${me.role === 'admin' ? '<th></th>' : ''}</tr></thead>
         <tbody>${s.history.map((h) => `<tr class="${h.voided_at ? 'voided' : ''}"><td>${fmtDate(h.created_at)}</td><td>${fmt(h.total_reported)}</td>
-          <td>${h.delivered}${h.codes ? `<div class="muted" style="font-size:.8rem">${esc(h.codes)}</div>` : ''}</td><td>${h.to_a} / ${h.to_b}</td><td>${esc(h.agent_name)}</td>
+          <td>${h.delivered === 0 && !h.voided_at ? '<span class="pill">Corrección de total</span>' : h.delivered}${h.codes ? `<div class="muted" style="font-size:.8rem">${esc(h.codes)}</div>` : ''}</td><td>${h.to_a} / ${h.to_b}</td><td>${esc(h.agent_name)}</td>
           ${me.role === 'admin' ? (h.voided_at
             ? `<td class="void-info">Anulada por ${esc(h.voided_by_name)}: ${esc(h.void_reason)}</td>`
-            : `<td><button class="btn small" data-void="${h.id}">Anular</button></td>`) : ''}</tr>`).join('')
+            : h.delivered === 0 ? '<td></td>' : `<td><button class="btn small" data-void="${h.id}">Anular</button></td>`) : ''}</tr>`).join('')
           || `<tr><td colspan="6" class="muted">Sin entregas todavía.</td></tr>`}</tbody></table></div>
       </div>`;
 
@@ -314,6 +316,27 @@
   }
 
   function bindVoid() {
+    const sel = new Set();
+    const btn = $('#voidSelBtn');
+    document.querySelectorAll('.chip.clickable').forEach((c) => c.addEventListener('click', () => {
+      const code = c.dataset.code;
+      if (sel.has(code)) sel.delete(code); else sel.add(code);
+      c.classList.toggle('sel', sel.has(code));
+      if (btn) { btn.classList.toggle('hidden', !sel.size); btn.textContent = `🗑️ Anular seleccionados (${sel.size})`; }
+    }));
+    if (btn) btn.addEventListener('click', async () => {
+      const totalTxt = prompt(`Vas a anular ${sel.size} ticket(s): ${[...sel].join(', ')}.\n\n¿Cuál es el TOTAL REAL recargado ese día según el backoffice?\n(el sistema lo usará como último total del día)`);
+      if (totalTxt === null) return;
+      const correctedTotal = Number(String(totalTxt).replace(/\D/g, ''));
+      if (!String(totalTxt).replace(/\D/g, '')) return toast('Escribe el total del día', true);
+      const reason = prompt('Motivo de la anulación:', 'Tickets entregados de más');
+      if (!reason) return;
+      try {
+        const r = await api('/api/tickets/void', { body: { codes: [...sel], draw: current.draw.key, reason, correctedTotal } });
+        toast(`Anulados ${r.voidedTickets} tickets`);
+        await openPlayer(current.player.id);
+      } catch (e) { toast(e.message, true); }
+    });
     const run = async (url, question) => {
       const reason = prompt(question + '\n\nEscribe el motivo (queda en la auditoría):', 'Ticket de prueba');
       if (!reason) return;
@@ -458,6 +481,133 @@
       $('#agentMsg').textContent = `Agente ${f.username} creado.`;
       loadAgents();
     } catch (err) { $('#agentMsg').textContent = err.message; }
+  });
+
+  // ================= STREAM (control del sorteo en vivo) =================
+  let st = null, stTimer = null, stSelected = null;
+  const urnName = { A: '🎃 Comodines', B: '🎁 Premios' };
+  const kindName = { cash: 'Efectivo', boost: 'Boost', comodin: 'Comodín' };
+
+  async function loadStream() {
+    st = await api('/api/live/control');
+    renderStream();
+    clearInterval(stTimer);
+    stTimer = setInterval(async () => {
+      if ($('#tab-stream').classList.contains('hidden')) return clearInterval(stTimer);
+      st = await api('/api/live/control').catch(() => st);
+      renderStream(true);
+    }, 4000);
+  }
+
+  async function act(body) {
+    try {
+      const r = await api('/api/live/action', { body });
+      st = await api('/api/live/control');
+      renderStream();
+      return r;
+    } catch (e) { toast(e.message, true); throw e; }
+  }
+
+  function renderStream(soft) {
+    const S = st.state, d = st.draw;
+    const url = `${location.origin}/overlay.html`;
+    $('#stUrl').textContent = url; $('#stOpen').href = url;
+    $('#stClients').textContent = st.overlayClients ? `🟢 ${st.overlayClients} pantalla(s) conectada(s)` : '⚪ Pantalla OBS no conectada';
+    if (!soft) {
+      $('#stDraw').innerHTML = st.draws.map((x) => `<option value="${esc(x.key)}" ${x.key === S.drawKey ? 'selected' : ''}>${esc(x.name)} · ${fmtDay(x.key)}</option>`).join('');
+    }
+    document.querySelectorAll('#stMode button').forEach((b) => b.classList.toggle('on', (b.dataset.mode === '1') === S.rehearsal));
+    const closed = d && d.state === 'cerrado';
+    $('#stModeInfo').innerHTML = S.rehearsal
+      ? '🧪 <b>Modo ensayo:</b> puedes practicar las veces que quieras; los resultados no cuentan y en pantalla aparece "MODO ENSAYO".'
+      : closed ? '🔴 <b>Modo real:</b> cada pelotita que saques es un ganador oficial.'
+        : `⚠️ <b>Modo real:</b> la entrega de tickets sigue abierta hasta el ${esc(d?.cutoff_label || '')}. Podrás sacar pelotitas reales después del cierre.`;
+    $('#stResMode').textContent = S.rehearsal ? 'ensayo' : 'oficiales';
+    document.querySelectorAll('#stScenes button').forEach((b) => b.classList.toggle('on', b.dataset.scene === S.scene));
+    $('#stCntA').textContent = `${st.counts.A} tickets participando`;
+    $('#stCntB').textContent = `${st.counts.B} tickets participando`;
+
+    const urn = S.scene === 'A' || S.scene === 'B' ? S.scene : null;
+    $('#stHint').classList.toggle('hidden', !!urn);
+    const list = urn ? st.prizes.filter((p) => p.urn === urn) : [];
+    let selected = S.prizeId;
+    if (urn && !list.some((p) => p.id === selected && p.remaining > 0)) selected = null;
+    // Si queda un solo tipo de premio en el bombo (ej. Comodines), se elige solo.
+    const avail = list.filter((p) => p.remaining > 0);
+    if (urn && !selected && avail.length === 1) selected = avail[0].id;
+    stSelected = selected;
+    $('#stPrizes').innerHTML = list.map((p) => `<button data-prize="${p.id}" class="${p.id === selected ? 'on' : ''}" ${p.remaining <= 0 ? 'disabled' : ''}>
+        ${esc(p.label)}<small>quedan ${p.remaining} de ${p.qty}</small></button>`).join('');
+    $('#stPrizes').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => act({ action: 'prize', prizeId: Number(b.dataset.prize) })));
+    $('#stMix').disabled = !urn; $('#stExtract').disabled = !urn || !selected;
+    $('#stMix').classList.toggle('mixing', S.mixing);
+    $('#stMix').textContent = S.mixing ? '⏸️ Detener mezcla' : '🌀 Mezclar';
+    $('#stExtract').title = !selected ? 'Primero elige el premio' : '';
+
+    const last = S.last;
+    $('#stLast').classList.toggle('hidden', !last);
+    if (last) $('#stLast').innerHTML = `🏆 <b>${esc(last.prize.label)}</b> → ticket <b>${esc(last.code)}</b> · ${esc(last.user)} ${S.rehearsal ? '<span class="pill">ensayo</span>' : ''}`;
+
+    $('#stResults').innerHTML = st.results.map((r, i) => `<tr class="${r.voided_at ? 'voided' : ''}">
+        <td>${i + 1}</td><td>${urnName[r.urn]}</td><td><b>${esc(r.prize_label)}</b></td><td>${esc(r.username)}</td><td>${esc(r.code)}</td>
+        <td>${fmtDate(r.created_at)}</td>
+        <td>${r.voided_at ? `<span class="void-info">Anulada: ${esc(r.void_reason)}</span>` : `<button class="btn small" data-xvoid="${r.id}">Anular</button>`}</td></tr>`).join('')
+      || '<tr><td colspan="7" class="muted">Aún no hay ganadores.</td></tr>';
+    $('#stResults').querySelectorAll('[data-xvoid]').forEach((b) => b.addEventListener('click', async () => {
+      const reason = prompt('¿Anular esta extracción? El premio vuelve a estar disponible y el jugador vuelve a participar.\n\nMotivo:');
+      if (!reason) return;
+      try { await api(`/api/extractions/${b.dataset.xvoid}/void`, { body: { reason } }); loadStream(); } catch (e) { toast(e.message, true); }
+    }));
+
+    if (!soft) {
+      const realPrizes = st.prizes;
+      $('#stPrizeRows').innerHTML = realPrizes.map((p) => `<tr><td>${urnName[p.urn]}</td><td>${esc(p.label)}</td><td>${kindName[p.kind]}</td>
+        <td><input type="number" min="0" value="${p.qty}" data-qty="${p.id}" style="width:80px"></td><td>${p.used}</td>
+        <td><button class="btn small" data-pdel="${p.id}">Quitar</button></td></tr>`).join('');
+      $('#stPrizeRows').querySelectorAll('[data-qty]').forEach((inp) => inp.addEventListener('change', async () => {
+        const p = realPrizes.find((x) => x.id === Number(inp.dataset.qty));
+        try { await api(`/api/draws/${S.drawKey}/prizes`, { body: { ...p, qty: Number(inp.value) } }); toast('Cantidad guardada'); loadStream(); } catch (e) { toast(e.message, true); loadStream(); }
+      }));
+      $('#stPrizeRows').querySelectorAll('[data-pdel]').forEach((b) => b.addEventListener('click', async () => {
+        if (!confirm('¿Quitar este premio?')) return;
+        try { await api(`/api/draws/${S.drawKey}/prizes/${b.dataset.pdel}/delete`, { body: {} }); loadStream(); } catch (e) { toast(e.message, true); }
+      }));
+    }
+  }
+
+  $('#stDraw').addEventListener('change', (e) => act({ action: 'draw', drawKey: e.target.value }));
+  document.querySelectorAll('#stMode button').forEach((b) => b.addEventListener('click', () => {
+    const rehearsal = b.dataset.mode === '1';
+    if (!rehearsal && !confirm('¿Pasar a MODO REAL? Cada pelotita que saques será un ganador oficial.')) return;
+    act({ action: 'mode', rehearsal });
+  }));
+  document.querySelectorAll('#stScenes button').forEach((b) => b.addEventListener('click', () => act({ action: 'scene', scene: b.dataset.scene })));
+  $('#stMix').addEventListener('click', () => act({ action: 'mix', on: !st.state.mixing }));
+  $('#stExtract').addEventListener('click', async () => {
+    const btn = $('#stExtract');
+    btn.disabled = true;
+    try {
+      const r = await act({ action: 'extract', prizeId: stSelected });
+      toast(`Salió ${r.code} · ${r.username} → ${r.prize.label}`);
+    } catch { /* toast ya mostrado */ }
+    setTimeout(() => renderStream(true), 9000);
+  });
+  $('#stCopy').addEventListener('click', () => navigator.clipboard.writeText($('#stUrl').textContent).then(() => toast('Enlace copiado')));
+  $('#stClearRehearsal').addEventListener('click', async () => {
+    if (!confirm('¿Borrar todos los resultados de ensayo de este sorteo?')) return;
+    try { const r = await api(`/api/draws/${st.state.drawKey}/rehearsal/clear`, { body: {} }); toast(`Borrados ${r.removed} resultados de ensayo`); loadStream(); } catch (e) { toast(e.message, true); }
+  });
+  $('#stPrizeForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = Object.fromEntries(new FormData(e.target));
+    try { await api(`/api/draws/${st.state.drawKey}/prizes`, { body: { ...f, qty: Number(f.qty), value: Number(f.value || 0) } }); e.target.reset(); loadStream(); } catch (err) { toast(err.message, true); }
+  });
+  $('#stExport').addEventListener('click', async () => {
+    try {
+      const r = await api(`/api/draws/${st.state.drawKey}/export`, { body: {} });
+      $('#stExportMsg').innerHTML = `✅ Página generada con ${r.tickets} tickets${r.winners ? ` y ${r.winners} ganadores` : ''}.<br>
+        Carpeta: <code>${esc(r.dir)}</code><br>Para publicarla: entra a <b>app.netlify.com</b> → tu sitio → <b>Deploys</b> → arrastra la carpeta <b>sitio-publico</b> al recuadro.`;
+    } catch (e) { toast(e.message, true); }
   });
 
   start();

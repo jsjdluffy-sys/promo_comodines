@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const config = require('./config');
 const time = require('./time');
-const { computeClaim, splitDestination, RuleError, fmt } = require('./rules');
+const { computeClaim, splitDestination, ticketsForTotal, RuleError, fmt } = require('./rules');
 
 function createService(db) {
   const q = {
@@ -9,8 +9,9 @@ function createService(db) {
     playerByName: db.prepare('SELECT * FROM players WHERE username = ?'),
     searchPlayers: db.prepare("SELECT * FROM players WHERE username LIKE ? ESCAPE '\\' ORDER BY username LIMIT 20"),
     insertPlayer: db.prepare('INSERT INTO players (username) VALUES (?)'),
-    dayGiven: db.prepare(`SELECT COALESCE(SUM(delivered),0) AS given FROM claims
-                          WHERE player_id = ? AND day_key = ? AND voided_at IS NULL`),
+    // Tickets vigentes entregados hoy (los anulados devuelven el cupo del día).
+    dayGiven: db.prepare(`SELECT COUNT(*) AS given FROM tickets t JOIN claims c ON c.id = t.claim_id
+                          WHERE c.player_id = ? AND c.day_key = ? AND t.voided_at IS NULL`),
     lastClaimToday: db.prepare(`SELECT total_reported FROM claims WHERE player_id = ? AND day_key = ?
                                 AND voided_at IS NULL ORDER BY id DESC LIMIT 1`),
     maxSeq: db.prepare('SELECT COALESCE(MAX(seq),0) AS s FROM tickets WHERE draw_key = ? AND urn = ?'),
@@ -22,6 +23,8 @@ function createService(db) {
                               VALUES (?,?,?,?,?,?,?)`),
     playerTickets: db.prepare(`SELECT urn, code, created_at FROM tickets WHERE player_id = ? AND draw_key = ?
                                AND voided_at IS NULL ORDER BY urn, seq`),
+    playerVoidedTickets: db.prepare(`SELECT urn, code FROM tickets WHERE player_id = ? AND draw_key = ?
+                               AND voided_at IS NOT NULL ORDER BY urn, seq`),
     playerClaims: db.prepare(`SELECT c.*, a.name AS agent_name, v.name AS voided_by_name,
                               (SELECT GROUP_CONCAT(code, ', ') FROM tickets t WHERE t.claim_id = c.id) AS codes
                               FROM claims c JOIN agents a ON a.id = c.agent_id LEFT JOIN agents v ON v.id = c.voided_by
@@ -100,6 +103,7 @@ function createService(db) {
     audit(agent?.id ?? null, 'draw.create', null, {
       key: drawDate, name: nm, opens: opensAt.toISOString(), cutoff: cutoffAt.toISOString(), comodines: !!comodines,
     });
+    seedDefaultPrizes(db, drawDate, !!comodines);
     return decorateDraw(db.prepare('SELECT * FROM draws WHERE id = ?').get(r.lastInsertRowid), now);
   }
 
@@ -128,6 +132,8 @@ function createService(db) {
     if (newKey !== d.key) {
       db.prepare('UPDATE tickets SET draw_key = ? WHERE draw_key = ?').run(newKey, d.key);
       db.prepare('UPDATE claims SET draw_key = ? WHERE draw_key = ?').run(newKey, d.key);
+      db.prepare('UPDATE prizes SET draw_key = ? WHERE draw_key = ?').run(newKey, d.key);
+      db.prepare('UPDATE extractions SET draw_key = ? WHERE draw_key = ?').run(newKey, d.key);
     }
     audit(agent.id, 'draw.edit', null, {
       from: { key: d.key, name: d.name, cutoff: d.cutoff_at }, to: { key: newKey, name, cutoff: cutoffIso },
@@ -262,6 +268,9 @@ function createService(db) {
       const c = db.prepare('SELECT * FROM claims WHERE id = ?').get(id);
       if (!c) throw new RuleError('NOT_FOUND', 'Entrega no encontrada.');
       if (c.voided_at) continue;
+      const won = db.prepare(`SELECT e.code FROM extractions e JOIN tickets t ON t.id = e.ticket_id
+                              WHERE t.claim_id = ? AND e.rehearsal = 0 AND e.voided_at IS NULL`).get(id);
+      if (won) throw new RuleError('WINNER', `El ticket ${won.code} de esta entrega ya ganó un premio: no se puede anular.`);
       db.prepare('UPDATE claims SET voided_at = ?, voided_by = ?, void_reason = ? WHERE id = ?').run(iso, agent.id, r, id);
       voidedTickets += db.prepare('UPDATE tickets SET voided_at = ? WHERE claim_id = ?').run(iso, id).changes;
       const codes = db.prepare('SELECT code FROM tickets WHERE claim_id = ? ORDER BY urn, seq').all(id).map((t) => t.code);
@@ -270,6 +279,64 @@ function createService(db) {
     }
     return { voidedClaims: done.length, voidedTickets };
   });
+
+  // Anular tickets sueltos (por ej. si se entregaron de más). El cupo del día vuelve al jugador.
+  // correctedTotal: total real del día según el backoffice (corrige el monto mal ingresado).
+  const voidTicketsTx = db.transaction((codes, drawKey, reason, correctedTotal, agent, now) => {
+    const r = String(reason || '').trim();
+    if (r.length < 3) throw new RuleError('INVALID', 'Escribe el motivo de la anulación.');
+    if (!codes.length) throw new RuleError('INVALID', 'Selecciona al menos un ticket.');
+    if (!Number.isInteger(correctedTotal) || correctedTotal < 0) {
+      throw new RuleError('INVALID', 'Indica el total real recargado ese día según el backoffice.');
+    }
+    const iso = now.toISOString();
+    const touched = new Set();
+    let playerId = null;
+    const rows = codes.map((code) => {
+      const t = db.prepare(`SELECT t.*, c.day_key FROM tickets t JOIN claims c ON c.id = t.claim_id
+                            WHERE t.draw_key = ? AND t.code = ?`).get(drawKey, code);
+      if (!t) throw new RuleError('NOT_FOUND', `Ticket ${code} no encontrado.`);
+      return t;
+    });
+    const days = new Set(rows.map((t) => t.day_key));
+    if (days.size > 1) throw new RuleError('INVALID', 'Selecciona tickets entregados el mismo día.');
+    if (new Set(rows.map((t) => t.player_id)).size > 1) throw new RuleError('INVALID', 'Selecciona tickets de un solo jugador.');
+    const day = rows[0].day_key;
+    for (const t of rows) {
+      const code = t.code;
+      if (t.voided_at) continue;
+      const won = db.prepare('SELECT 1 FROM extractions WHERE ticket_id = ? AND rehearsal = 0 AND voided_at IS NULL').get(t.id);
+      if (won) throw new RuleError('WINNER', `El ticket ${code} ya ganó un premio: no se puede anular.`);
+      db.prepare('UPDATE tickets SET voided_at = ? WHERE id = ?').run(iso, t.id);
+      touched.add(t.claim_id);
+      playerId = t.player_id;
+    }
+    // El total corregido debe alcanzar para los tickets que le quedan ese día.
+    const left = q.dayGiven.get(playerId, day).given;
+    if (ticketsForTotal(correctedTotal) < left) {
+      throw new RuleError('INVALID', `Con un total de ${fmt(correctedTotal)} le corresponden ${ticketsForTotal(correctedTotal)} tickets, pero le quedarían ${left}. Anula ${left - ticketsForTotal(correctedTotal)} más.`);
+    }
+    const prev = q.lastClaimToday.get(playerId, day);
+    // Registro de corrección: desde ahora el "último total del día" es el corregido.
+    db.prepare(`INSERT INTO claims (player_id, agent_id, day_key, draw_key, total_reported, prev_total,
+                tickets_for_day, delivered, to_a, to_b, created_at) VALUES (?,?,?,?,?,?,?,0,0,0,?)`)
+      .run(playerId, agent.id, day, drawKey, correctedTotal, prev ? prev.total_reported : null, ticketsForTotal(correctedTotal), iso);
+    // Si una entrega quedó sin tickets vigentes, la entrega completa queda anulada.
+    for (const claimId of touched) {
+      const left = db.prepare('SELECT COUNT(*) AS n FROM tickets WHERE claim_id = ? AND voided_at IS NULL').get(claimId).n;
+      if (left === 0) {
+        db.prepare('UPDATE claims SET voided_at = ?, voided_by = ?, void_reason = ? WHERE id = ? AND voided_at IS NULL')
+          .run(iso, agent.id, r, claimId);
+      }
+    }
+    audit(agent.id, 'tickets.void', playerId, { codes, reason: r, draw: drawKey, day, correctedTotal });
+    return { voidedTickets: codes.length };
+  });
+
+  function voidTickets(codes, drawKey, reason, correctedTotal, agent, now = new Date()) {
+    if (agent.role !== 'admin') throw new RuleError('FORBIDDEN', 'Solo un admin puede anular tickets.');
+    return voidTicketsTx([...new Set(codes)], drawKey, reason, correctedTotal, agent, now);
+  }
 
   function voidClaim(claimId, reason, agent, now = new Date()) {
     if (agent.role !== 'admin') throw new RuleError('FORBIDDEN', 'Solo un admin puede anular entregas.');
@@ -305,6 +372,7 @@ function createService(db) {
       today: { day: st.day, lastTotal: st.prevTotal, given: st.alreadyGiven, cap: config.DAILY_CAP },
       draw,
       week: { A: tickets.filter((x) => x.urn === 'A'), B: tickets.filter((x) => x.urn === 'B') },
+      voidedTickets: draw ? q.playerVoidedTickets.all(playerId, draw.key) : [],
       history: q.playerClaims.all(playerId),
     };
   }
@@ -340,7 +408,7 @@ function createService(db) {
     searchPlayers, createPlayer, getPlayer, setHalloween, preview, confirm, summary,
     drawSummary, drawTickets, auditLog, audit,
     activeDraw, currentOrLastDraw, listDraws, createDraw, editDraw, setCutoff, closeNow,
-    voidClaim, voidAllForPlayer,
+    voidClaim, voidAllForPlayer, voidTickets,
   };
 }
 
@@ -364,6 +432,29 @@ function buildMessage({ codes, week, draw }) {
 }
 
 // Primer inicio: abre el sorteo de esta semana (con Comodines) hasta el próximo sábado 19:00.
+// Premios por defecto (el admin puede cambiarlos en la pestaña Stream).
+const DEFAULT_PRIZES = {
+  A: [{ label: 'Comodín Halloween', kind: 'comodin', value: 0, qty: 5 }],
+  B: [
+    { label: '$25.000', kind: 'cash', value: 25000, qty: 1 },
+    { label: '$15.000', kind: 'cash', value: 15000, qty: 1 },
+    { label: '$10.000', kind: 'cash', value: 10000, qty: 1 },
+    { label: '$5.000', kind: 'cash', value: 5000, qty: 1 },
+    { label: 'Boost x2', kind: 'boost', value: 100, qty: 2 },
+    { label: 'Boost +20%', kind: 'boost', value: 20, qty: 5 },
+    { label: 'Boost +30%', kind: 'boost', value: 30, qty: 3 },
+    { label: 'Boost +40%', kind: 'boost', value: 40, qty: 2 },
+  ],
+};
+
+function seedDefaultPrizes(db, drawKey, comodines) {
+  if (db.prepare('SELECT COUNT(*) AS n FROM prizes WHERE draw_key = ?').get(drawKey).n > 0) return;
+  const ins = db.prepare('INSERT INTO prizes (draw_key, urn, label, kind, value, qty, sort) VALUES (?,?,?,?,?,?,?)');
+  for (const urn of comodines ? ['A', 'B'] : ['B']) {
+    DEFAULT_PRIZES[urn].forEach((p, i) => ins.run(drawKey, urn, p.label, p.kind, p.value, p.qty, i));
+  }
+}
+
 function seedFirstDraw(svc, db, now = new Date()) {
   if (db.prepare('SELECT COUNT(*) AS n FROM draws').get().n > 0) return null;
   const key = time.drawKey(now);
@@ -386,4 +477,4 @@ function verifyPassword(pw, stored) {
   return crypto.timingSafeEqual(test, Buffer.from(hash, 'hex'));
 }
 
-module.exports = { createService, seedFirstDraw, hashPassword, verifyPassword, buildMessage };
+module.exports = { createService, seedFirstDraw, seedDefaultPrizes, DEFAULT_PRIZES, hashPassword, verifyPassword, buildMessage };

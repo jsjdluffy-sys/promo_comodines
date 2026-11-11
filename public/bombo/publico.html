@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gran Sorteo Winmax</title>
+  <meta name="description" content="Mira tus pelotitas en el bombo y la lista de tickets del Gran Sorteo Winmax.">
+  <link rel="icon" href="logo.png">
+  <link rel="stylesheet" href="publico.css">
+</head>
+<body>
+  <header class="hero">
+    <img src="logo.png" alt="Winmax" class="logo">
+    <h1>GRAN SORTEO</h1>
+    <p id="drawName" class="sub"></p>
+    <p id="status" class="status"></p>
+  </header>
+
+  <main>
+    <section class="drums">
+      <canvas id="c" width="1920" height="1080" aria-label="Bombos del sorteo girando"></canvas>
+      <button id="soundBtn" class="sound" type="button">🔇 Sonido</button>
+    </section>
+
+    <section class="card search">
+      <h2>🔎 Busca tus pelotitas</h2>
+      <p class="muted">Escribe tu usuario o tu número de ticket (ej.: B-0042). Tus pelotitas se iluminan en el bombo.</p>
+      <input id="q" type="search" placeholder="Tu usuario o ticket" autocomplete="off">
+      <div id="mine"></div>
+    </section>
+
+    <section id="winnersBox" class="card hidden">
+      <h2>🏆 Ganadores</h2>
+      <div class="cols">
+        <div><h3>🎃 Comodines</h3><ol id="winA"></ol></div>
+        <div><h3>🎁 Premios</h3><ol id="winB"></ol></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>🎁 Premios</h2>
+      <div class="cols">
+        <div id="prA"><h3>🎃 Bombo Comodines</h3><ul></ul></div>
+        <div id="prB"><h3>🎁 Bombo Premios</h3><ul></ul></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>🎟️ Lista de tickets</h2>
+      <div class="tabs">
+        <button class="tab active" data-u="A" id="tabA">🎃 Comodines</button>
+        <button class="tab" data-u="B">🎁 Premios</button>
+      </div>
+      <p id="listInfo" class="muted"></p>
+      <div class="list" id="list"></div>
+    </section>
+
+    <p class="foot">Cada ticket es una pelotita y todas tienen la misma probabilidad de salir. Cada persona puede ganar máximo 1 premio por bombo.<br>🔞 +18 · Juega con responsabilidad</p>
+  </main>
+
+  <script src="matter.min.js"></script>
+  <script src="bombo.js"></script>
+  <script src="publico.js"></script>
+</body>
+</html>
