@@ -1,6 +1,13 @@
 const fs = require('fs');
 const path = require('path');
-const Database = require('better-sqlite3');
+// Ocultar solo el aviso "SQLite es experimental" de Node; los demás avisos se muestran normal.
+const emitWarning = process.emitWarning;
+process.emitWarning = function (warning, ...args) {
+  if (String(warning?.message ?? warning).includes('SQLite is an experimental feature')) return;
+  return emitWarning.call(process, warning, ...args);
+};
+// SQLite incluido en Node (22.13+): no requiere compilar nada ni instalar Visual Studio.
+const { DatabaseSync } = require('node:sqlite');
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS agents (
@@ -84,10 +91,22 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 function openDb(dbPath) {
   if (dbPath !== ':memory:') fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-  const db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  const db = new DatabaseSync(dbPath);
+  db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
   db.exec(SCHEMA);
+
+  // Envuelve una función en una transacción: si algo falla, no se guarda nada.
+  db.transaction = (fn) => (...args) => {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const result = fn(...args);
+      db.exec('COMMIT');
+      return result;
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
+  };
   return db;
 }
 

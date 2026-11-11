@@ -6,7 +6,10 @@ Fase 1 del sistema de sorteos: entrega de tickets en dos urnas (🎃 Comodines y
 
 ## Instalar y arrancar
 
-Requiere Node.js 20 o superior.
+Requiere Node.js 22.13 o superior (recomendado: la versión LTS de https://nodejs.org).
+No necesita Visual Studio ni compilar nada: usa la base de datos SQLite que ya viene incluida en Node.
+
+> **Windows:** no instales el proyecto dentro de `C:\Windows\system32`. Antes de clonar, ejecuta `cd $HOME`.
 
 ```bash
 npm install

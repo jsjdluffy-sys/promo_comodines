@@ -9,8 +9,10 @@
   },
   "license": "ISC",
   "dependencies": {
-    "better-sqlite3": "^11.8.1",
     "express": "^4.21.2"
   },
-  "private": true
+  "private": true,
+  "engines": {
+    "node": ">=22.13"
+  }
 }
