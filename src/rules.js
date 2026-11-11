@@ -50,11 +50,9 @@ function computeClaim({ total, prevTotal, alreadyGiven }) {
 }
 
 /** Divide los tickets entre Urna A (Bombo Comodines) y Urna B (Bombo Premios). */
-function splitDestination({ destination, toDeliver, aCount, halloweenEligible }) {
+// Cualquier jugador puede participar por el Comodín (no hace falta que le falte un día específico).
+function splitDestination({ destination, toDeliver, aCount }) {
   if (destination === 'premios' || toDeliver === 0) return { a: 0, b: toDeliver };
-  if (!halloweenEligible) {
-    throw new RuleError('NOT_ELIGIBLE', 'El usuario no está marcado en el Reto Halloween (le falta 1 día). Solo puede ir al Bombo Premios.');
-  }
   if (destination === 'comodin') return { a: toDeliver, b: 0 };
   if (destination === 'dividir') {
     if (!Number.isInteger(aCount) || aCount < 0 || aCount > toDeliver) {

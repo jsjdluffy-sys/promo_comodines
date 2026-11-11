@@ -97,7 +97,7 @@
     if (!qtext) { ul.innerHTML = ''; $('#createBox').classList.add('hidden'); return; }
     const list = await api('/api/players?q=' + encodeURIComponent(qtext));
     ul.innerHTML = list.map((p) =>
-      `<li data-id="${p.id}"><span>${esc(p.username)}</span>${p.halloween_eligible ? '<span title="Reto Halloween">🎃</span>' : ''}</li>`).join('');
+      `<li data-id="${p.id}"><span>${esc(p.username)}</span></li>`).join('');
     ul.querySelectorAll('li').forEach((li) => li.addEventListener('click', () => openPlayer(Number(li.dataset.id))));
     const exact = list.some((p) => p.username.toLowerCase() === qtext.toLowerCase());
     $('#createBox').classList.toggle('hidden', exact);
@@ -126,17 +126,13 @@
     const elig = !!p.halloween_eligible;
     const open = status.draw;
     const comodinesOn = !!open?.comodines_enabled;
-    const canA = comodinesOn && elig;
+    const canA = comodinesOn;
     $('#playerPane').innerHTML = `
       <div class="card">
         <div class="player-head">
           <div class="player-name">${esc(p.username)}</div>
-          ${comodinesOn ? `<div class="row">
-            <span class="badge ${elig ? 'on' : ''}">🎃 Reto Halloween: ${elig ? 'le falta 1 día' : 'no marcado'}</span>
-            <button id="hwBtn" class="btn small">${elig ? 'Quitar marca' : 'Marcar: le falta 1 día'}</button>
-          </div>` : ''}
+
         </div>
-        ${comodinesOn && elig && p.halloween_marked_by_name ? `<div class="muted" style="margin-top:4px;font-size:.85rem">Marcado por ${esc(p.halloween_marked_by_name)} · ${fmtDate(p.halloween_marked_at)}</div>` : ''}
         <div class="stats">
           <div class="stat"><div class="k">Último total registrado hoy</div><div class="v">${s.today.lastTotal == null ? '—' : fmt(s.today.lastTotal)}</div></div>
           <div class="stat"><div class="k">Entregados hoy</div><div class="v">${s.today.given} / ${s.today.cap}</div></div>
@@ -162,7 +158,7 @@
           <label><input type="radio" name="dest" value="dividir" ${canA ? '' : 'disabled'}><span>⚖️ Dividir</span></label>
         </div>
         ${!comodinesOn ? '<div class="muted" style="margin-bottom:12px">🎁 Este sorteo no tiene Comodines: todos los tickets van al Bombo Premios.</div>'
-          : elig ? '' : '<div class="muted" style="font-size:.85rem;margin-bottom:10px">Comodín y Dividir se habilitan solo si el usuario está marcado en el Reto Halloween.</div>'}
+          : '<div class="muted" style="font-size:.85rem;margin-bottom:10px">El jugador elige: 🎃 Comodín (recuperar un bono de Halloween), 🎁 Premios, o Dividir entre ambos.</div>'}
         <div id="splitWrap" class="split hidden">
           <span>A Comodín:</span><input id="aCount" type="number" min="0" value="0">
           <span id="splitRest" class="muted"></span>

@@ -206,7 +206,7 @@ function createService(db) {
     const calc = computeClaim({ total, prevTotal: st.prevTotal, alreadyGiven: st.alreadyGiven });
     return {
       ...calc, prevTotal: st.prevTotal, drawKey: draw.key,
-      comodinesAllowed: draw.comodines_enabled && !!player.halloween_eligible,
+      comodinesAllowed: draw.comodines_enabled,
     };
   }
 
@@ -225,7 +225,7 @@ function createService(db) {
       throw new RuleError('NO_COMODINES', 'Este sorteo no tiene Comodines: todos los tickets van al Bombo Premios.');
     }
     const split = splitDestination({
-      destination, toDeliver: calc.toDeliver, aCount, halloweenEligible: !!player.halloween_eligible,
+      destination, toDeliver: calc.toDeliver, aCount,
     });
     const createdAt = now.toISOString();
     const claimId = q.insertClaim.run({

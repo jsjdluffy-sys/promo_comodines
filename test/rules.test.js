@@ -40,12 +40,11 @@ test('el total no puede bajar', () => {
   assert.throws(() => computeClaim({ total: 40000, prevTotal: 45000, alreadyGiven: 2 }), { code: 'AMOUNT_DECREASED' });
 });
 
-test('división de urnas solo para marcados en Halloween', () => {
-  assert.deepEqual(splitDestination({ destination: 'premios', toDeliver: 3, halloweenEligible: false }), { a: 0, b: 3 });
-  assert.throws(() => splitDestination({ destination: 'comodin', toDeliver: 3, halloweenEligible: false }), { code: 'NOT_ELIGIBLE' });
-  assert.deepEqual(splitDestination({ destination: 'comodin', toDeliver: 3, halloweenEligible: true }), { a: 3, b: 0 });
-  assert.deepEqual(splitDestination({ destination: 'dividir', toDeliver: 3, aCount: 1, halloweenEligible: true }), { a: 1, b: 2 });
-  assert.throws(() => splitDestination({ destination: 'dividir', toDeliver: 3, aCount: 4, halloweenEligible: true }), { code: 'INVALID_SPLIT' });
+test('división de urnas: cualquier jugador puede ir a Comodín', () => {
+  assert.deepEqual(splitDestination({ destination: 'premios', toDeliver: 3 }), { a: 0, b: 3 });
+  assert.deepEqual(splitDestination({ destination: 'comodin', toDeliver: 3 }), { a: 3, b: 0 });
+  assert.deepEqual(splitDestination({ destination: 'dividir', toDeliver: 3, aCount: 1 }), { a: 1, b: 2 });
+  assert.throws(() => splitDestination({ destination: 'dividir', toDeliver: 3, aCount: 4 }), { code: 'INVALID_SPLIT' });
 });
 
 test('sugerencia de cierre: próximo sábado 19:00; el día cambia a medianoche de Chile', () => {
@@ -95,15 +94,12 @@ test('flujo completo: varias entregas en el día, números únicos y tope', () =
   assert.equal(r4.week.B, 11);
 });
 
-test('Halloween: dividir entre urnas con numeración separada', () => {
+test('Comodín sin marca previa: dividir entre urnas con numeración separada', () => {
   const { svc, p } = setup();
   const now = cl('2026-11-11T10:00:00');
-  assert.throws(() => svc.confirm({ playerId: p.id, total: 60000, destination: 'comodin', agentId: 1, now }), { code: 'NOT_ELIGIBLE' });
-  svc.setHalloween(p.id, true, { id: 1, role: 'agente' });
   const r = svc.confirm({ playerId: p.id, total: 60000, destination: 'dividir', aCount: 1, agentId: 1, now });
   assert.deepEqual(r.codes, { A: ['A-0001'], B: ['B-0001', 'B-0002'] });
   assert.match(r.message, /Comodín: A-0001/);
-  assert.throws(() => svc.setHalloween(p.id, false, { id: 1, role: 'agente' }), { code: 'FORBIDDEN' });
 });
 
 test('después del cierre del sábado 19:00 las entregas se bloquean', () => {

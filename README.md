@@ -48,7 +48,7 @@ El login se bloquea 15 minutos tras 8 intentos fallidos por usuario.
 2. El agente lo busca (o lo registra si es nuevo).
 3. Copia el **total recargado HOY** que muestra el backoffice (el acumulado, no el último depósito).
 4. El sistema calcula `min(10, floor(total / 20.000))` menos los ya entregados hoy y muestra cuántos entregar.
-5. Si el usuario está marcado en el Reto Halloween, el agente elige Premios, Comodín o Dividir.
+5. El agente elige el destino que pide el jugador: Premios, Comodín o Dividir.
 6. Confirma y copia el mensaje con los números de ticket para el usuario.
 
 ## Reglas que aplica el sistema
@@ -61,7 +61,7 @@ El login se bloquea 15 minutos tras 8 intentos fallidos por usuario.
 - **Entregas solo con sorteo abierto:** al llegar el cierre (por defecto sábado 19:00) las entregas **se bloquean solas**. El panel lo muestra en rojo y sugiere una respuesta para el usuario. Se reactivan cuando el admin anuncia un nuevo sorteo.
 - **Comodines por sorteo:** cada sorteo indica si tiene Comodines. El primero (esta semana) los incluye; los siguientes se crean sin Comodines por defecto, y entonces todo va al Bombo Premios y las opciones de Halloween desaparecen del panel.
 - **Numeración:** consecutiva y única por sorteo y por urna (`A-0001`, `B-0001`); se reinicia cada semana.
-- **Reto Halloween:** solo los usuarios marcados ("le falta 1 día") pueden recibir tickets de Comodín. Cualquier agente puede marcar a un usuario; solo un admin puede quitar la marca.
+- **Comodín abierto a todos:** cualquier jugador puede elegir Comodín, Premios o Dividir (en sorteos con Comodines). El comodín le permite recuperar un bono de Halloween que no recibió.
 - **Entregas simultáneas:** cada entrega es una transacción, así que dos agentes no pueden duplicar tickets.
 - **Auditoría:** todo queda registrado (quién, cuándo, total, tickets) en la pestaña Auditoría (solo admin).
 
