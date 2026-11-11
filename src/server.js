@@ -107,6 +107,11 @@ function createApp(db) {
   app.post('/api/players/:id/halloween', auth, handle((req) =>
     svc.setHalloween(Number(req.params.id), !!req.body?.eligible, req.agent)));
 
+  app.post('/api/claims/:id/void', auth, adminOnly, handle((req) =>
+    svc.voidClaim(Number(req.params.id), req.body?.reason, req.agent)));
+  app.post('/api/players/:id/void-all', auth, adminOnly, handle((req) =>
+    svc.voidAllForPlayer(Number(req.params.id), req.body?.reason, req.agent)));
+
   const parseAmount = (v) => (typeof v === 'number' ? v : Number(String(v ?? '').replace(/\D/g, '') || NaN));
 
   app.post('/api/players/:id/preview', auth, handle((req) =>
@@ -131,6 +136,9 @@ function createApp(db) {
   }, req.agent)));
   app.post('/api/draws/:key/cutoff', auth, adminOnly, handle((req) =>
     svc.setCutoff(req.params.key, req.body?.cutoffLocal, req.agent)));
+  app.post('/api/draws/:key/edit', auth, adminOnly, handle((req) => svc.editDraw(req.params.key, {
+    name: req.body?.name, drawDate: req.body?.drawDate, cutoffLocal: req.body?.cutoffLocal,
+  }, req.agent)));
   app.post('/api/draws/:key/close', auth, adminOnly, handle((req) => svc.closeNow(req.params.key, req.agent)));
   app.get('/api/draws/:key', auth, handle((req) => svc.drawSummary(req.params.key)));
   app.get('/api/draws/:key/tickets.csv', auth, (req, res) => {

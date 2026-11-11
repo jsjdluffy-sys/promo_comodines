@@ -94,6 +94,7 @@ function openDb(dbPath) {
   const db = new DatabaseSync(dbPath);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
   db.exec(SCHEMA);
+  migrate(db);
 
   // Envuelve una función en una transacción: si algo falla, no se guarda nada.
   db.transaction = (fn) => (...args) => {
@@ -108,6 +109,18 @@ function openDb(dbPath) {
     }
   };
   return db;
+}
+
+// Agrega columnas nuevas a bases de datos creadas con versiones anteriores.
+function migrate(db) {
+  const cols = (table) => db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+  const add = (table, col, type) => {
+    if (!cols(table).includes(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
+  };
+  add('claims', 'voided_at', 'TEXT');
+  add('claims', 'voided_by', 'INTEGER REFERENCES agents(id)');
+  add('claims', 'void_reason', 'TEXT');
+  add('tickets', 'voided_at', 'TEXT');
 }
 
 module.exports = { openDb };

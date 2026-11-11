@@ -151,5 +151,8 @@ label.check input { width: auto; margin: 0; }
 .pill.abierto { border-color: var(--green); color: #86efac; }
 .pill.cerrado { color: var(--muted); }
 .pill.programado { border-color: var(--yellow); color: #fde047; }
+.voided td { color: var(--muted); text-decoration: line-through; }
+.voided td.void-info { text-decoration: none; color: #fca5a5; font-size: .85rem; }
+.table input { padding: 6px 8px; min-width: 120px; }
 .blocked-card { border-color: var(--red); text-align: center; padding: 28px; }
 @media (max-width: 600px) { .urns { grid-template-columns: 1fr; } #drawSelect { min-width: 0; width: 100%; } }

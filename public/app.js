@@ -184,9 +184,17 @@
       <div class="card">
         <h3>Tickets ${s.draw ? `· ${esc(s.draw.name)} (${fmtDay(s.draw.key)})` : ''}</h3>
         <div class="chips">${s.week.A.map((t) => `<span class="chip a">${esc(t.code)}</span>`).join('')}${s.week.B.map((t) => `<span class="chip b">${esc(t.code)}</span>`).join('') || (s.week.A.length ? '' : '<span class="muted">Aún no tiene tickets en este sorteo.</span>')}</div>
-        <h3 style="margin-top:18px">Historial de entregas</h3>
-        <div class="tablewrap"><table class="table"><thead><tr><th>Fecha</th><th>Total reportado</th><th>Entregados</th><th>A / B</th><th>Agente</th></tr></thead>
-        <tbody>${s.history.map((h) => `<tr><td>${fmtDate(h.created_at)}</td><td>${fmt(h.total_reported)}</td><td>${h.delivered}</td><td>${h.to_a} / ${h.to_b}</td><td>${esc(h.agent_name)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Sin entregas todavía.</td></tr>'}</tbody></table></div>
+        <div class="row between wrap" style="margin-top:18px">
+          <h3 style="margin:0">Historial de entregas</h3>
+          ${me.role === 'admin' && s.history.some((h) => !h.voided_at) ? '<button id="voidAllBtn" class="btn small">🗑️ Anular todas sus entregas</button>' : ''}
+        </div>
+        <div class="tablewrap"><table class="table"><thead><tr><th>Fecha</th><th>Total reportado</th><th>Tickets</th><th>A / B</th><th>Agente</th>${me.role === 'admin' ? '<th></th>' : ''}</tr></thead>
+        <tbody>${s.history.map((h) => `<tr class="${h.voided_at ? 'voided' : ''}"><td>${fmtDate(h.created_at)}</td><td>${fmt(h.total_reported)}</td>
+          <td>${h.delivered}${h.codes ? `<div class="muted" style="font-size:.8rem">${esc(h.codes)}</div>` : ''}</td><td>${h.to_a} / ${h.to_b}</td><td>${esc(h.agent_name)}</td>
+          ${me.role === 'admin' ? (h.voided_at
+            ? `<td class="void-info">Anulada por ${esc(h.voided_by_name)}: ${esc(h.void_reason)}</td>`
+            : `<td><button class="btn small" data-void="${h.id}">Anular</button></td>`) : ''}</tr>`).join('')
+          || `<tr><td colspan="6" class="muted">Sin entregas todavía.</td></tr>`}</tbody></table></div>
       </div>`;
 
     bindPlayerForm();
@@ -199,6 +207,7 @@
 
   function bindPlayerForm() {
     if ($('#hwBtn')) bindHalloween();
+    bindVoid();
     if (!$('#amount')) return;
     const amount = $('#amount');
     const amount2 = $('#amount2');
@@ -288,6 +297,23 @@
     });
   }
 
+  function bindVoid() {
+    const run = async (url, question) => {
+      const reason = prompt(question + '\n\nEscribe el motivo (queda en la auditoría):', 'Ticket de prueba');
+      if (!reason) return;
+      try {
+        const r = await api(url, { body: { reason } });
+        toast(`Anulados ${r.voidedTickets} tickets`);
+        await openPlayer(current.player.id);
+      } catch (e) { toast(e.message, true); }
+    };
+    document.querySelectorAll('[data-void]').forEach((b) => b.addEventListener('click', () =>
+      run(`/api/claims/${b.dataset.void}/void`, '¿Anular esta entrega? Sus tickets salen del sorteo.')));
+    const all = $('#voidAllBtn');
+    if (all) all.addEventListener('click', () =>
+      run(`/api/players/${current.player.id}/void-all`, `¿Anular TODAS las entregas de ${current.player.username}? Todos sus tickets salen del sorteo.`));
+  }
+
   function bindHalloween() {
     $('#hwBtn').addEventListener('click', async () => {
       const elig = !current.player.halloween_eligible;
@@ -337,18 +363,30 @@
       <td>${esc(d.name)}</td><td>${fmtDay(d.key)}</td><td>${esc(d.opens_label)}</td>
       <td>${esc(d.cutoff_label)}${d.closed_early_at ? ' <span class="muted">(cerrado a mano)</span>' : ''}</td>
       <td>${d.comodines_enabled ? '🎃 Sí' : 'No'}</td><td><span class="pill ${d.state}">${d.state}</span></td>
-      <td>${d.state === 'cerrado' ? '' : `<button class="btn small" data-act="cutoff" data-key="${esc(d.key)}" data-cut="${esc(d.cutoff_local)}">Cambiar cierre</button>
-        <button class="btn small" data-act="close" data-key="${esc(d.key)}">Cerrar ahora</button>`}</td></tr>`).join('')
+      <td><button class="btn small" data-act="edit" data-key="${esc(d.key)}">Editar</button>
+        ${d.state === 'cerrado' ? '' : `<button class="btn small" data-act="close" data-key="${esc(d.key)}">Cerrar ahora</button>`}</td></tr>
+      <tr class="hidden" data-edit="${esc(d.key)}"><td colspan="7">
+        <div class="drawform">
+          <label>Nombre<input data-f="name" value="${esc(d.name)}"></label>
+          <label>Fecha del sorteo<input data-f="drawDate" type="date" value="${esc(d.key)}"></label>
+          <label>Cierre de tickets (hora de Chile)<input data-f="cutoffLocal" type="datetime-local" value="${esc(d.cutoff_local)}"></label>
+          <div class="row"><button class="btn primary" data-act="save" data-key="${esc(d.key)}">Guardar</button>
+            <button class="btn" data-act="cancel" data-key="${esc(d.key)}">Cancelar</button></div>
+        </div>
+      </td></tr>`).join('')
       || '<tr><td colspan="7" class="muted">Sin sorteos.</td></tr>';
     $('#drawRows').querySelectorAll('button').forEach((b) => b.addEventListener('click', async () => {
       try {
+        const editRow = document.querySelector(`[data-edit="${b.dataset.key}"]`);
+        if (b.dataset.act === 'edit' || b.dataset.act === 'cancel') { editRow.classList.toggle('hidden'); return; }
         if (b.dataset.act === 'close') {
-          if (!confirm('¿Cerrar la entrega de tickets de este sorteo ahora? No se puede reabrir.')) return;
+          if (!confirm('¿Cerrar la entrega de tickets de este sorteo ahora?')) return;
           await api(`/api/draws/${b.dataset.key}/close`, { body: {} });
-        } else {
-          const v = prompt('Nuevo cierre (hora de Chile), formato AAAA-MM-DDTHH:MM', b.dataset.cut);
-          if (!v) return;
-          await api(`/api/draws/${b.dataset.key}/cutoff`, { body: { cutoffLocal: v.trim() } });
+        } else if (b.dataset.act === 'save') {
+          const val = (f) => editRow.querySelector(`[data-f="${f}"]`).value;
+          const d = await api(`/api/draws/${b.dataset.key}/edit`, { body: { name: val('name'), drawDate: val('drawDate'), cutoffLocal: val('cutoffLocal') } });
+          toast(`Guardado. Tickets hasta el ${d.cutoff_label}`);
+          selectedDraw = d.key;
         }
         await refreshStatus();
         loadDraws();
@@ -377,6 +415,7 @@
     'halloween.unmark': '🎃 Quita marca', 'agent.login': '🔑 Inicio de sesión', 'agent.create': '🧑‍💼 Agente creado',
     'agent.disable': '⛔ Agente desactivado', 'agent.enable': '✅ Agente activado',
     'draw.create': '📣 Sorteo abierto', 'draw.close': '⛔ Sorteo cerrado', 'draw.cutoff': '⏰ Cambio de cierre',
+    'draw.edit': '✏️ Sorteo editado', 'tickets.void': '🗑️ Entrega anulada',
   };
   async function loadAudit() {
     const rows = await api('/api/audit');

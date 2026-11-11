@@ -9,9 +9,10 @@ function createService(db) {
     playerByName: db.prepare('SELECT * FROM players WHERE username = ?'),
     searchPlayers: db.prepare("SELECT * FROM players WHERE username LIKE ? ESCAPE '\\' ORDER BY username LIMIT 20"),
     insertPlayer: db.prepare('INSERT INTO players (username) VALUES (?)'),
-    dayGiven: db.prepare('SELECT COALESCE(SUM(delivered),0) AS given FROM claims WHERE player_id = ? AND day_key = ?'),
+    dayGiven: db.prepare(`SELECT COALESCE(SUM(delivered),0) AS given FROM claims
+                          WHERE player_id = ? AND day_key = ? AND voided_at IS NULL`),
     lastClaimToday: db.prepare(`SELECT total_reported FROM claims WHERE player_id = ? AND day_key = ?
-                                ORDER BY id DESC LIMIT 1`),
+                                AND voided_at IS NULL ORDER BY id DESC LIMIT 1`),
     maxSeq: db.prepare('SELECT COALESCE(MAX(seq),0) AS s FROM tickets WHERE draw_key = ? AND urn = ?'),
     insertClaim: db.prepare(`INSERT INTO claims (player_id, agent_id, day_key, draw_key, total_reported, prev_total,
                              tickets_for_day, delivered, to_a, to_b, created_at)
@@ -20,9 +21,11 @@ function createService(db) {
     insertTicket: db.prepare(`INSERT INTO tickets (draw_key, urn, seq, code, player_id, claim_id, created_at)
                               VALUES (?,?,?,?,?,?,?)`),
     playerTickets: db.prepare(`SELECT urn, code, created_at FROM tickets WHERE player_id = ? AND draw_key = ?
-                               ORDER BY urn, seq`),
-    playerClaims: db.prepare(`SELECT c.*, a.name AS agent_name FROM claims c JOIN agents a ON a.id = c.agent_id
-                              WHERE c.player_id = ? ORDER BY c.id DESC LIMIT 30`),
+                               AND voided_at IS NULL ORDER BY urn, seq`),
+    playerClaims: db.prepare(`SELECT c.*, a.name AS agent_name, v.name AS voided_by_name,
+                              (SELECT GROUP_CONCAT(code, ', ') FROM tickets t WHERE t.claim_id = c.id) AS codes
+                              FROM claims c JOIN agents a ON a.id = c.agent_id LEFT JOIN agents v ON v.id = c.voided_by
+                              WHERE c.player_id = ? ORDER BY c.id DESC LIMIT 50`),
     audit: db.prepare('INSERT INTO audit_log (agent_id, action, player_id, details) VALUES (?,?,?,?)'),
     setHalloween: db.prepare(`UPDATE players SET halloween_eligible = ?, halloween_marked_by = ?, halloween_marked_at = ?
                               WHERE id = ?`),
@@ -100,17 +103,44 @@ function createService(db) {
     return decorateDraw(db.prepare('SELECT * FROM draws WHERE id = ?').get(r.lastInsertRowid), now);
   }
 
-  function setCutoff(key, cutoffLocal, agent, now = new Date()) {
+  // Editar nombre, fecha y/o cierre. Cambiar la fecha mueve también sus tickets y entregas.
+  const editDrawTx = db.transaction((key, changes, agent, now) => {
     const d = q.drawByKey.get(key);
     if (!d) throw new RuleError('NOT_FOUND', 'Sorteo no encontrado.');
-    const cutoffAt = time.zonedToUtc(cutoffLocal);
-    if (!cutoffAt) throw new RuleError('INVALID', 'Fecha u hora inválida.');
-    if (cutoffAt <= now) throw new RuleError('INVALID', 'El nuevo cierre debe ser en el futuro. Para cerrar ya, usa "Cerrar ahora".');
-    if (cutoffAt.toISOString() <= d.opens_at) throw new RuleError('INVALID', 'El cierre debe ser después de la apertura.');
-    checkOverlap(new Date(d.opens_at), cutoffAt, d.id);
-    db.prepare('UPDATE draws SET cutoff_at = ?, closed_early_at = NULL WHERE id = ?').run(cutoffAt.toISOString(), d.id);
-    audit(agent.id, 'draw.cutoff', null, { key, from: d.cutoff_at, to: cutoffAt.toISOString() });
-    return decorateDraw(q.drawByKey.get(key), now);
+    const name = changes.name == null ? d.name : String(changes.name).trim();
+    if (name.length < 3 || name.length > 80) throw new RuleError('INVALID', 'El nombre del sorteo debe tener entre 3 y 80 caracteres.');
+    const newKey = changes.drawDate || d.key;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(newKey)) throw new RuleError('INVALID', 'Fecha del sorteo inválida.');
+    if (newKey !== d.key && q.drawByKey.get(newKey)) throw new RuleError('DUPLICATE', 'Ya existe un sorteo para esa fecha.');
+    let cutoffIso = d.cutoff_at;
+    if (changes.cutoffLocal) {
+      const cutoffAt = time.zonedToUtc(changes.cutoffLocal);
+      if (!cutoffAt) throw new RuleError('INVALID', 'Fecha u hora de cierre inválida.');
+      cutoffIso = cutoffAt.toISOString();
+      if (cutoffIso !== d.cutoff_at) {
+        if (cutoffAt <= now) throw new RuleError('INVALID', 'El nuevo cierre debe ser en el futuro. Para cerrar ya, usa "Cerrar ahora".');
+        if (cutoffIso <= d.opens_at) throw new RuleError('INVALID', 'El cierre debe ser después de la apertura.');
+        checkOverlap(new Date(d.opens_at), cutoffAt, d.id);
+      }
+    }
+    db.prepare('UPDATE draws SET key = ?, name = ?, cutoff_at = ?, closed_early_at = CASE WHEN ? = cutoff_at THEN closed_early_at ELSE NULL END WHERE id = ?')
+      .run(newKey, name, cutoffIso, cutoffIso, d.id);
+    if (newKey !== d.key) {
+      db.prepare('UPDATE tickets SET draw_key = ? WHERE draw_key = ?').run(newKey, d.key);
+      db.prepare('UPDATE claims SET draw_key = ? WHERE draw_key = ?').run(newKey, d.key);
+    }
+    audit(agent.id, 'draw.edit', null, {
+      from: { key: d.key, name: d.name, cutoff: d.cutoff_at }, to: { key: newKey, name, cutoff: cutoffIso },
+    });
+    return decorateDraw(q.drawByKey.get(newKey), now);
+  });
+
+  function editDraw(key, changes, agent, now = new Date()) {
+    return editDrawTx(key, changes || {}, agent, now);
+  }
+
+  function setCutoff(key, cutoffLocal, agent, now = new Date()) {
+    return editDraw(key, { cutoffLocal }, agent, now);
   }
 
   function closeNow(key, agent, now = new Date()) {
@@ -221,6 +251,38 @@ function createService(db) {
     return { claimId, draw: draw.key, codes, calc, week, message: buildMessage({ codes, week, draw }) };
   });
 
+  // Anular entrega (solo admin): sus tickets salen del sorteo; queda registro con el motivo.
+  const voidTx = db.transaction((claimIds, reason, agent, now) => {
+    const r = String(reason || '').trim();
+    if (r.length < 3) throw new RuleError('INVALID', 'Escribe el motivo de la anulación.');
+    const iso = now.toISOString();
+    let voidedTickets = 0;
+    const done = [];
+    for (const id of claimIds) {
+      const c = db.prepare('SELECT * FROM claims WHERE id = ?').get(id);
+      if (!c) throw new RuleError('NOT_FOUND', 'Entrega no encontrada.');
+      if (c.voided_at) continue;
+      db.prepare('UPDATE claims SET voided_at = ?, voided_by = ?, void_reason = ? WHERE id = ?').run(iso, agent.id, r, id);
+      voidedTickets += db.prepare('UPDATE tickets SET voided_at = ? WHERE claim_id = ?').run(iso, id).changes;
+      const codes = db.prepare('SELECT code FROM tickets WHERE claim_id = ? ORDER BY urn, seq').all(id).map((t) => t.code);
+      audit(agent.id, 'tickets.void', c.player_id, { claimId: id, reason: r, codes, draw: c.draw_key });
+      done.push(id);
+    }
+    return { voidedClaims: done.length, voidedTickets };
+  });
+
+  function voidClaim(claimId, reason, agent, now = new Date()) {
+    if (agent.role !== 'admin') throw new RuleError('FORBIDDEN', 'Solo un admin puede anular entregas.');
+    return voidTx([claimId], reason, agent, now);
+  }
+
+  function voidAllForPlayer(playerId, reason, agent, now = new Date()) {
+    if (agent.role !== 'admin') throw new RuleError('FORBIDDEN', 'Solo un admin puede anular entregas.');
+    getPlayer(playerId);
+    const ids = db.prepare('SELECT id FROM claims WHERE player_id = ? AND voided_at IS NULL').all(playerId).map((c) => c.id);
+    return voidTx(ids, reason, agent, now);
+  }
+
   function confirm(args) {
     return confirmTx({ ...args, now: args.now || new Date() });
   }
@@ -251,9 +313,9 @@ function createService(db) {
     const d = q.drawByKey.get(key);
     if (!d) throw new RuleError('NOT_FOUND', 'Sorteo no encontrado.');
     const urns = db.prepare(`SELECT urn, COUNT(*) AS tickets, COUNT(DISTINCT player_id) AS players
-                             FROM tickets WHERE draw_key = ? GROUP BY urn`).all(key);
+                             FROM tickets WHERE draw_key = ? AND voided_at IS NULL GROUP BY urn`).all(key);
     const byPlayer = db.prepare(`SELECT p.username, t.urn, COUNT(*) AS n FROM tickets t JOIN players p ON p.id = t.player_id
-                                 WHERE t.draw_key = ? GROUP BY p.id, t.urn ORDER BY t.urn, n DESC, p.username`).all(key);
+                                 WHERE t.draw_key = ? AND t.voided_at IS NULL GROUP BY p.id, t.urn ORDER BY t.urn, n DESC, p.username`).all(key);
     const empty = { tickets: 0, players: 0 };
     return {
       draw: decorateDraw(d, now),
@@ -265,7 +327,7 @@ function createService(db) {
 
   function drawTickets(key) {
     return db.prepare(`SELECT t.code, t.urn, p.username, t.created_at FROM tickets t JOIN players p ON p.id = t.player_id
-                       WHERE t.draw_key = ? ORDER BY t.urn, t.seq`).all(key);
+                       WHERE t.draw_key = ? AND t.voided_at IS NULL ORDER BY t.urn, t.seq`).all(key);
   }
 
   function auditLog(limit = 200) {
@@ -277,7 +339,8 @@ function createService(db) {
   return {
     searchPlayers, createPlayer, getPlayer, setHalloween, preview, confirm, summary,
     drawSummary, drawTickets, auditLog, audit,
-    activeDraw, currentOrLastDraw, listDraws, createDraw, setCutoff, closeNow,
+    activeDraw, currentOrLastDraw, listDraws, createDraw, editDraw, setCutoff, closeNow,
+    voidClaim, voidAllForPlayer,
   };
 }
 
@@ -300,12 +363,12 @@ function buildMessage({ codes, week, draw }) {
   return lines.join('\n');
 }
 
-// Primer inicio: abre el sorteo de esta semana (con Comodines) hasta el próximo viernes 19:00.
+// Primer inicio: abre el sorteo de esta semana (con Comodines) hasta el próximo sábado 18:00.
 function seedFirstDraw(svc, db, now = new Date()) {
   if (db.prepare('SELECT COUNT(*) AS n FROM draws').get().n > 0) return null;
   const key = time.drawKey(now);
   return svc.createDraw({
-    name: 'Sorteo del Viernes + Comodines Halloween',
+    name: 'Sorteo semanal + Comodines Halloween',
     drawDate: key,
     cutoffLocal: `${key}T${String(config.CUTOFF_HOUR).padStart(2, '0')}:00`,
     comodines: true,

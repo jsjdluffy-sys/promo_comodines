@@ -31,7 +31,7 @@ function dayKey(date = new Date()) {
   return `${p.year}-${pad(p.month)}-${pad(p.day)}`;
 }
 
-// Próximo viernes de cierre a partir de `date` (sugerencia por defecto al crear un sorteo).
+// Próximo día de cierre (sábado 18:00 por defecto) a partir de `date` (sugerencia por defecto al crear un sorteo).
 function drawKey(date = new Date()) {
   const p = localParts(date);
   const today = dayKey(date);
