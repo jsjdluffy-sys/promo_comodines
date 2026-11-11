@@ -160,7 +160,9 @@
         ${!comodinesOn ? '<div class="muted" style="margin-bottom:12px">🎁 Este sorteo no tiene Comodines: todos los tickets van al Bombo Premios.</div>'
           : '<div class="muted" style="font-size:.85rem;margin-bottom:10px">El jugador elige: 🎃 Comodín (recuperar un bono de Halloween), 🎁 Premios, o Dividir entre ambos.</div>'}
         <div id="splitWrap" class="split hidden">
-          <span>A Comodín:</span><input id="aCount" type="number" min="0" value="0">
+          <label class="splitbox a">🎃 Comodín<input id="aCount" type="number" min="0" value="0" inputmode="numeric"></label>
+          <label class="splitbox b">🎁 Premios<input id="bCount" type="number" min="0" value="0" inputmode="numeric"></label>
+          <button type="button" id="halfBtn" class="btn small">½ Mitad y mitad</button>
           <span id="splitRest" class="muted"></span>
         </div>
         <button id="confirmBtn" class="btn primary big" disabled>✅ Confirmar entrega</button>
@@ -217,14 +219,25 @@
 
     const dest = () => document.querySelector('input[name="dest"]:checked').value;
 
-    function updateSplit() {
+    // Dividir: dos casillas enlazadas (Comodín + Premios = total a entregar).
+    let lastTotal = null;
+    function setSplit(a) {
+      const t = preview.toDeliver;
+      const n = Math.min(Math.max(0, Math.round(Number(a) || 0)), t);
+      $('#aCount').value = n;
+      $('#bCount').value = t - n;
+      $('#aCount').max = t; $('#bCount').max = t;
+      $('#splitRest').textContent = `Total: ${t} ticket${t === 1 ? '' : 's'}`;
+    }
+    function updateSplit(e) {
       const show = dest() === 'dividir' && preview && preview.toDeliver > 0;
       $('#splitWrap').classList.toggle('hidden', !show);
       if (show) {
-        const a = $('#aCount');
-        a.max = preview.toDeliver;
-        const n = Math.min(Math.max(0, Number(a.value) || 0), preview.toDeliver);
-        $('#splitRest').textContent = `→ ${preview.toDeliver - n} a Premios`;
+        const t = preview.toDeliver;
+        if (e?.target?.id === 'bCount') setSplit(t - (Number($('#bCount').value) || 0));
+        else if (e?.target?.name === 'dest' || lastTotal !== t) setSplit(Math.floor(t / 2)); // por defecto: mitad
+        else setSplit($('#aCount').value);
+        lastTotal = t;
       }
       updateButton();
     }
@@ -274,6 +287,8 @@
     amount2.addEventListener('input', () => { formatInput(amount2); updateButton(); });
     document.querySelectorAll('input[name="dest"]').forEach((r) => r.addEventListener('change', updateSplit));
     $('#aCount').addEventListener('input', updateSplit);
+    $('#bCount').addEventListener('input', updateSplit);
+    $('#halfBtn').addEventListener('click', () => { setSplit(Math.floor(preview.toDeliver / 2)); updateButton(); });
     amount.focus();
 
     $('#confirmBtn').addEventListener('click', async () => {

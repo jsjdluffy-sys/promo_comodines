@@ -116,7 +116,11 @@ label input { margin-top: 4px; }
 .dest input:checked + span { border-color: var(--accent); background: rgba(139,92,246,.18); }
 .dest input:disabled + span { opacity: .35; cursor: not-allowed; }
 .split { display: flex; gap: 10px; align-items: center; margin: 6px 0 12px; }
-.split input { width: 90px; }
+.split { flex-wrap: wrap; }
+.split input { width: 90px; margin-top: 4px; font-size: 1.2rem; font-weight: 700; text-align: center; }
+.splitbox { margin: 0; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); display: flex; flex-direction: column; align-items: center; }
+.splitbox.a { border-color: var(--orange); }
+.splitbox.b { border-color: var(--accent); }
 
 .msg { white-space: pre-wrap; background: #0b2a17; border: 1px solid var(--green); border-radius: 10px; padding: 14px; font-size: 1rem; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
