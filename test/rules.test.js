@@ -27,6 +27,13 @@ test('cálculo por diferencia sobre el acumulado del día', () => {
   assert.equal(computeClaim({ total: 45000, prevTotal: 45000, alreadyGiven: 2 }).status, 'NO_CHANGE');
   assert.equal(computeClaim({ total: 55000, prevTotal: 45000, alreadyGiven: 2 }).status, 'BELOW_NEXT_TICKET');
   assert.equal(computeClaim({ total: 55000, prevTotal: 45000, alreadyGiven: 2 }).missingForNext, 5000);
+  // ejemplo: 60.000 en la mañana y +240.000 en la tarde = total 300.000
+  const morning = computeClaim({ total: 60000, prevTotal: null, alreadyGiven: 0 });
+  assert.equal(morning.toDeliver, 3);
+  assert.equal(morning.increase, null);
+  const afternoon = computeClaim({ total: 300000, prevTotal: 60000, alreadyGiven: 3 });
+  assert.equal(afternoon.toDeliver, 7);
+  assert.equal(afternoon.increase, 240000);
 });
 
 test('el total no puede bajar', () => {
@@ -34,7 +41,7 @@ test('el total no puede bajar', () => {
 });
 
 test('división de urnas solo para marcados en Halloween', () => {
-  assert.deepEqual(splitDestination({ destination: 'ruleta', toDeliver: 3, halloweenEligible: false }), { a: 0, b: 3 });
+  assert.deepEqual(splitDestination({ destination: 'premios', toDeliver: 3, halloweenEligible: false }), { a: 0, b: 3 });
   assert.throws(() => splitDestination({ destination: 'comodin', toDeliver: 3, halloweenEligible: false }), { code: 'NOT_ELIGIBLE' });
   assert.deepEqual(splitDestination({ destination: 'comodin', toDeliver: 3, halloweenEligible: true }), { a: 3, b: 0 });
   assert.deepEqual(splitDestination({ destination: 'dividir', toDeliver: 3, aCount: 1, halloweenEligible: true }), { a: 1, b: 2 });
@@ -68,22 +75,22 @@ function setup() {
 test('flujo completo: varias entregas en el día, números únicos y tope', () => {
   const { svc, p } = setup();
   const now = cl('2026-11-11T10:00:00');
-  const r1 = svc.confirm({ playerId: p.id, total: 45000, destination: 'ruleta', agentId: 1, now });
+  const r1 = svc.confirm({ playerId: p.id, total: 45000, destination: 'premios', agentId: 1, now });
   assert.deepEqual(r1.codes.B, ['B-0001', 'B-0002']);
-  const r2 = svc.confirm({ playerId: p.id, total: 100000, destination: 'ruleta', agentId: 1, now: cl('2026-11-11T15:30:00') });
+  const r2 = svc.confirm({ playerId: p.id, total: 100000, destination: 'premios', agentId: 1, now: cl('2026-11-11T15:30:00') });
   assert.deepEqual(r2.codes.B, ['B-0003', 'B-0004', 'B-0005']);
   assert.match(r2.message, /Recibiste 3 tickets/);
-  assert.match(r2.message, /Para este sorteo llevas 5 para Ruleta/);
+  assert.match(r2.message, /Para este sorteo llevas 5 para Premios/);
   assert.match(r2.message, /tickets hasta el 14\/11\/2026 18:00/);
-  assert.throws(() => svc.confirm({ playerId: p.id, total: 100000, destination: 'ruleta', agentId: 1, now }), { code: 'NO_CHANGE' });
-  assert.throws(() => svc.confirm({ playerId: p.id, total: 90000, destination: 'ruleta', agentId: 1, now }), { code: 'AMOUNT_DECREASED' });
+  assert.throws(() => svc.confirm({ playerId: p.id, total: 100000, destination: 'premios', agentId: 1, now }), { code: 'NO_CHANGE' });
+  assert.throws(() => svc.confirm({ playerId: p.id, total: 90000, destination: 'premios', agentId: 1, now }), { code: 'AMOUNT_DECREASED' });
   // monto alto exige confirmación
-  assert.throws(() => svc.confirm({ playerId: p.id, total: 1500000, destination: 'ruleta', agentId: 1, now }), { code: 'CONFIRM_REQUIRED' });
-  const r3 = svc.confirm({ playerId: p.id, total: 1500000, confirmTotal: 1500000, destination: 'ruleta', agentId: 1, now });
+  assert.throws(() => svc.confirm({ playerId: p.id, total: 1500000, destination: 'premios', agentId: 1, now }), { code: 'CONFIRM_REQUIRED' });
+  const r3 = svc.confirm({ playerId: p.id, total: 1500000, confirmTotal: 1500000, destination: 'premios', agentId: 1, now });
   assert.equal(r3.calc.toDeliver, 5);
-  assert.throws(() => svc.confirm({ playerId: p.id, total: 1600000, confirmTotal: 1600000, destination: 'ruleta', agentId: 1, now }), { code: 'CAP_REACHED' });
+  assert.throws(() => svc.confirm({ playerId: p.id, total: 1600000, confirmTotal: 1600000, destination: 'premios', agentId: 1, now }), { code: 'CAP_REACHED' });
   // día siguiente: contador nuevo, misma semana
-  const r4 = svc.confirm({ playerId: p.id, total: 20000, destination: 'ruleta', agentId: 1, now: cl('2026-11-12T09:00:00') });
+  const r4 = svc.confirm({ playerId: p.id, total: 20000, destination: 'premios', agentId: 1, now: cl('2026-11-12T09:00:00') });
   assert.deepEqual(r4.codes.B, ['B-0011']);
   assert.equal(r4.week.B, 11);
 });
@@ -101,10 +108,10 @@ test('Halloween: dividir entre urnas con numeración separada', () => {
 
 test('después del cierre del sábado 18:00 las entregas se bloquean', () => {
   const { svc, p } = setup();
-  const r1 = svc.confirm({ playerId: p.id, total: 120000, destination: 'ruleta', agentId: 1, now: cl('2026-11-14T17:59:00') });
+  const r1 = svc.confirm({ playerId: p.id, total: 120000, destination: 'premios', agentId: 1, now: cl('2026-11-14T17:59:00') });
   assert.equal(r1.draw, '2026-11-14');
   assert.throws(() => svc.preview(p.id, 300000, cl('2026-11-14T18:00:00')), { code: 'CLOSED' });
-  assert.throws(() => svc.confirm({ playerId: p.id, total: 300000, destination: 'ruleta', agentId: 1, now: cl('2026-11-15T10:00:00') }), { code: 'CLOSED' });
+  assert.throws(() => svc.confirm({ playerId: p.id, total: 300000, destination: 'premios', agentId: 1, now: cl('2026-11-15T10:00:00') }), { code: 'CLOSED' });
   assert.equal(svc.activeDraw(cl('2026-11-14T18:00:00')), null);
   assert.equal(svc.currentOrLastDraw(cl('2026-11-15T10:00:00')).key, '2026-11-14');
 });
@@ -120,7 +127,7 @@ test('nuevo sorteo anunciado por el admin, sin Comodines', () => {
   assert.equal(d.comodines_enabled, false);
   assert.equal(svc.preview(p.id, 40000, now).comodinesAllowed, false);
   assert.throws(() => svc.confirm({ playerId: p.id, total: 40000, destination: 'comodin', agentId: 1, now }), { code: 'NO_COMODINES' });
-  const r = svc.confirm({ playerId: p.id, total: 40000, destination: 'ruleta', agentId: 1, now });
+  const r = svc.confirm({ playerId: p.id, total: 40000, destination: 'premios', agentId: 1, now });
   assert.deepEqual(r.codes.B, ['B-0001', 'B-0002']); // numeración nueva por sorteo
   assert.equal(r.draw, '2026-11-21');
   // cerrar antes de tiempo
@@ -132,8 +139,8 @@ test('anular entregas: tickets fuera del sorteo, tope y total del día se recalc
   const { svc, p, db } = setup();
   const admin = { id: 1, role: 'admin' };
   const now = cl('2026-11-11T10:00:00');
-  const r1 = svc.confirm({ playerId: p.id, total: 40000, destination: 'ruleta', agentId: 1, now });
-  const r2 = svc.confirm({ playerId: p.id, total: 100000, destination: 'ruleta', agentId: 1, now });
+  const r1 = svc.confirm({ playerId: p.id, total: 40000, destination: 'premios', agentId: 1, now });
+  const r2 = svc.confirm({ playerId: p.id, total: 100000, destination: 'premios', agentId: 1, now });
   assert.throws(() => svc.voidClaim(r2.claimId, 'prueba', { id: 1, role: 'agente' }), { code: 'FORBIDDEN' });
   assert.throws(() => svc.voidClaim(r2.claimId, '', admin), { code: 'INVALID' });
   assert.deepEqual(svc.voidClaim(r2.claimId, 'Ticket de prueba', admin, now), { voidedClaims: 1, voidedTickets: 3 });
@@ -144,7 +151,7 @@ test('anular entregas: tickets fuera del sorteo, tope y total del día se recalc
   assert.equal(svc.drawSummary('2026-11-14').B.tickets, 2);
   assert.deepEqual(svc.drawTickets('2026-11-14').map((t) => t.code), ['B-0001', 'B-0002']);
   // los números anulados no se reutilizan
-  const r3 = svc.confirm({ playerId: p.id, total: 100000, destination: 'ruleta', agentId: 1, now });
+  const r3 = svc.confirm({ playerId: p.id, total: 100000, destination: 'premios', agentId: 1, now });
   assert.deepEqual(r3.codes.B, ['B-0006', 'B-0007', 'B-0008']);
   // anular todo el usuario
   assert.deepEqual(svc.voidAllForPlayer(p.id, 'Usuario de prueba', admin, now), { voidedClaims: 2, voidedTickets: 5 });
@@ -162,7 +169,7 @@ test('editar sorteo: cambiar cierre al sábado 18:00 y la fecha mueve los ticket
   // Sorteo creado con la versión anterior: viernes 13/11 19:00
   db.prepare("UPDATE draws SET key = '2026-11-13', cutoff_at = ? ").run(time.zonedToUtc('2026-11-13T19:00').toISOString());
   const now = cl('2026-11-11T10:00:00');
-  svc.confirm({ playerId: p.id, total: 40000, destination: 'ruleta', agentId: 1, now });
+  svc.confirm({ playerId: p.id, total: 40000, destination: 'premios', agentId: 1, now });
   const d = svc.editDraw('2026-11-13', { name: 'Sorteo sábado 14/11', drawDate: '2026-11-14', cutoffLocal: '2026-11-14T18:00' }, admin, now);
   assert.equal(d.key, '2026-11-14');
   assert.equal(d.cutoff_label, '14/11/2026 18:00');

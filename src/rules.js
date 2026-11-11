@@ -43,15 +43,17 @@ function computeClaim({ total, prevTotal, alreadyGiven }) {
     toDeliver,
     status,
     missingForNext: nextTicketAt === null ? null : nextTicketAt - total,
+    // Cuánto subió el total desde la última entrega de hoy (para que el agente lo compare con lo que dice el usuario).
+    increase: prevTotal === null ? null : total - prevTotal,
     needsDoubleCheck: total >= config.BIG_AMOUNT,
   };
 }
 
-/** Divide los tickets entre Urna A (Comodín) y Urna B (Ruleta). */
+/** Divide los tickets entre Urna A (Bombo Comodines) y Urna B (Bombo Premios). */
 function splitDestination({ destination, toDeliver, aCount, halloweenEligible }) {
-  if (destination === 'ruleta' || toDeliver === 0) return { a: 0, b: toDeliver };
+  if (destination === 'premios' || toDeliver === 0) return { a: 0, b: toDeliver };
   if (!halloweenEligible) {
-    throw new RuleError('NOT_ELIGIBLE', 'El usuario no está marcado en el Reto Halloween (le falta 1 día). Solo puede ir a Ruleta.');
+    throw new RuleError('NOT_ELIGIBLE', 'El usuario no está marcado en el Reto Halloween (le falta 1 día). Solo puede ir al Bombo Premios.');
   }
   if (destination === 'comodin') return { a: toDeliver, b: 0 };
   if (destination === 'dividir') {

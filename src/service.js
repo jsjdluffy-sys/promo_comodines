@@ -221,8 +221,8 @@ function createService(db) {
       throw new RuleError('CONFIRM_REQUIRED', `Monto alto: escribe ${fmt(total)} otra vez para confirmar.`);
     }
     if (calc.toDeliver === 0) throw new RuleError(calc.status, messageForZero(calc));
-    if (!draw.comodines_enabled && destination !== 'ruleta') {
-      throw new RuleError('NO_COMODINES', 'Este sorteo no tiene Comodines: todos los tickets van a Ruleta.');
+    if (!draw.comodines_enabled && destination !== 'premios') {
+      throw new RuleError('NO_COMODINES', 'Este sorteo no tiene Comodines: todos los tickets van al Bombo Premios.');
     }
     const split = splitDestination({
       destination, toDeliver: calc.toDeliver, aCount, halloweenEligible: !!player.halloween_eligible,
@@ -354,10 +354,10 @@ function buildMessage({ codes, week, draw }) {
   const n = codes.A.length + codes.B.length;
   const lines = [`✅ ¡Listo! Recibiste ${n} ticket${n === 1 ? '' : 's'}:`];
   if (codes.A.length) lines.push(`🎃 Comodín: ${codes.A.join(', ')}`);
-  if (codes.B.length) lines.push(`🎰 Ruleta: ${codes.B.join(', ')}`);
+  if (codes.B.length) lines.push(`🎁 Premios: ${codes.B.join(', ')}`);
   const parts = [];
   if (week.A) parts.push(`${week.A} para Comodín`);
-  parts.push(`${week.B} para Ruleta`);
+  parts.push(`${week.B} para Premios`);
   lines.push(`Para este sorteo llevas ${parts.join(' y ')}.`);
   lines.push(`🎟️ ${draw.name} · tickets hasta el ${draw.cutoff_label} 🍀`);
   return lines.join('\n');

@@ -141,7 +141,7 @@
           <div class="stat"><div class="k">Último total registrado hoy</div><div class="v">${s.today.lastTotal == null ? '—' : fmt(s.today.lastTotal)}</div></div>
           <div class="stat"><div class="k">Entregados hoy</div><div class="v">${s.today.given} / ${s.today.cap}</div></div>
           <div class="stat"><div class="k">🎃 Comodín (este sorteo)</div><div class="v">${s.week.A.length}</div></div>
-          <div class="stat"><div class="k">🎰 Ruleta (este sorteo)</div><div class="v">${s.week.B.length}</div></div>
+          <div class="stat"><div class="k">🎁 Premios (este sorteo)</div><div class="v">${s.week.B.length}</div></div>
         </div>
       </div>
 
@@ -157,11 +157,11 @@
 
         <div class="lbl">Destino de los tickets</div>
         <div class="dest ${comodinesOn ? '' : 'hidden'}">
-          <label><input type="radio" name="dest" value="ruleta" checked><span>🎰 Ruleta</span></label>
+          <label><input type="radio" name="dest" value="premios" checked><span>🎁 Premios</span></label>
           <label><input type="radio" name="dest" value="comodin" ${canA ? '' : 'disabled'}><span>🎃 Comodín</span></label>
           <label><input type="radio" name="dest" value="dividir" ${canA ? '' : 'disabled'}><span>⚖️ Dividir</span></label>
         </div>
-        ${!comodinesOn ? '<div class="muted" style="margin-bottom:12px">🎰 Este sorteo no tiene Comodines: todos los tickets van a Ruleta.</div>'
+        ${!comodinesOn ? '<div class="muted" style="margin-bottom:12px">🎁 Este sorteo no tiene Comodines: todos los tickets van al Bombo Premios.</div>'
           : elig ? '' : '<div class="muted" style="font-size:.85rem;margin-bottom:10px">Comodín y Dividir se habilitan solo si el usuario está marcado en el Reto Halloween.</div>'}
         <div id="splitWrap" class="split hidden">
           <span>A Comodín:</span><input id="aCount" type="number" min="0" value="0">
@@ -228,7 +228,7 @@
         const a = $('#aCount');
         a.max = preview.toDeliver;
         const n = Math.min(Math.max(0, Number(a.value) || 0), preview.toDeliver);
-        $('#splitRest').textContent = `→ ${preview.toDeliver - n} a Ruleta`;
+        $('#splitRest').textContent = `→ ${preview.toDeliver - n} a Premios`;
       }
       updateButton();
     }
@@ -247,7 +247,12 @@
       try {
         preview = await api(`/api/players/${current.player.id}/preview`, { body: { total: Number(total) } });
         $('#confirmWrap').classList.toggle('hidden', !preview.needsDoubleCheck);
-        const base = `<div class="line"><span>Corresponden hoy: <b>${preview.ticketsForDay}</b></span><span>Ya tenía: <b>${preview.alreadyGiven}</b></span></div>`;
+        const check = preview.prevTotal === null
+          ? `<div class="check">🆕 Primera entrega de hoy: el monto debe ser <b>todo lo recargado hoy</b> según el backoffice.</div>`
+          : `<div class="check">🔎 Último total de hoy: <b>${fmt(preview.prevTotal)}</b> → ahora <b>${fmt(Number(total))}</b> =
+             <b class="inc">+${fmt(preview.increase)}</b> desde la última entrega.<br>
+             <span class="muted">¿Coincide con lo que el usuario dice que recargó? Si dijo otro monto, revisa: debes escribir el TOTAL del día, no solo el último depósito.</span></div>`;
+        const base = `${check}<div class="line"><span>Corresponden hoy: <b>${preview.ticketsForDay}</b></span><span>Ya tenía: <b>${preview.alreadyGiven}</b></span></div>`;
         if (preview.toDeliver > 0) {
           box.className = 'calc ok';
           box.innerHTML = `${base}<div class="deliver-n">ENTREGAR ${preview.toDeliver} ticket${preview.toDeliver === 1 ? '' : 's'}</div>
@@ -347,7 +352,7 @@
     $('#urnB').textContent = d.B.tickets; $('#urnBp').textContent = `${d.B.players} jugadores`;
     $('#drawPlayers').innerHTML = d.byPlayer.map((r) => {
       const tot = r.urn === 'A' ? d.A.tickets : d.B.tickets;
-      return `<tr><td>${esc(r.username)}</td><td>${r.urn === 'A' ? '🎃 Comodín' : '🎰 Ruleta'}</td><td>${r.n}</td><td>${(100 * r.n / tot).toFixed(2)} %</td></tr>`;
+      return `<tr><td>${esc(r.username)}</td><td>${r.urn === 'A' ? '🎃 Comodines' : '🎁 Premios'}</td><td>${r.n}</td><td>${(100 * r.n / tot).toFixed(2)} %</td></tr>`;
     }).join('') || '<tr><td colspan="4" class="muted">Sin tickets todavía.</td></tr>';
   }
 

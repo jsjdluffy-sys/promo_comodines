@@ -121,7 +121,7 @@ function createApp(db) {
     playerId: Number(req.params.id),
     total: parseAmount(req.body?.total),
     confirmTotal: req.body?.confirmTotal == null ? null : parseAmount(req.body.confirmTotal),
-    destination: req.body?.destination || 'ruleta',
+    destination: req.body?.destination === 'ruleta' ? 'premios' : (req.body?.destination || 'premios'),
     aCount: req.body?.aCount == null ? undefined : Number(req.body.aCount),
     agentId: req.agent.id,
   })));
@@ -145,7 +145,7 @@ function createApp(db) {
     const rows = svc.drawTickets(req.params.key);
     const esc = (s) => `"${String(s).replace(/"/g, '""')}"`;
     const csv = ['codigo,urna,usuario,entregado'].concat(rows.map((r) =>
-      [r.code, r.urn === 'A' ? 'Comodin' : 'Ruleta', esc(r.username), r.created_at].join(','))).join('\n');
+      [r.code, r.urn === 'A' ? 'Comodines' : 'Premios', esc(r.username), r.created_at].join(','))).join('\n');
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="tickets-${req.params.key}.csv"`);
     res.send('﻿' + csv);
