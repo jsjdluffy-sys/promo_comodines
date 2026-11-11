@@ -41,17 +41,32 @@ function createApp(db) {
     }
   };
 
+  // Bloqueo por intentos fallidos: 8 por usuario o 20 por conexión cada 15 minutos.
+  const failures = new Map();
+  const WINDOW_MS = 15 * 60 * 1000;
+  const recent = (key) => (failures.get(key) || []).filter((t) => Date.now() - t < WINDOW_MS);
+  const addFailure = (key) => failures.set(key, [...recent(key), Date.now()]);
+
   app.post('/api/login', handle((req, res) => {
     const { username, password } = req.body || {};
+    const userKey = 'u:' + String(username || '').toLowerCase();
+    const ipKey = 'ip:' + (req.socket.remoteAddress || '');
+    if (recent(userKey).length >= 8 || recent(ipKey).length >= 20) {
+      throw new RuleError('LOCKED', 'Demasiados intentos fallidos. Espera 15 minutos e inténtalo de nuevo.');
+    }
     const a = db.prepare('SELECT * FROM agents WHERE username = ? AND active = 1').get(String(username || ''));
     if (!a || !verifyPassword(String(password || ''), a.pass_hash)) {
+      addFailure(userKey);
+      addFailure(ipKey);
       throw new RuleError('BAD_LOGIN', 'Usuario o contraseña incorrectos.');
     }
+    failures.delete(userKey);
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + config.SESSION_HOURS * 3600e3);
     db.prepare('INSERT INTO sessions (token, agent_id, expires_at) VALUES (?,?,?)').run(token, a.id, expires.toISOString());
     svc.audit(a.id, 'agent.login', null, null);
-    res.setHeader('Set-Cookie', `sid=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${config.SESSION_HOURS * 3600}`);
+    const secure = req.secure || req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+    res.setHeader('Set-Cookie', `sid=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${config.SESSION_HOURS * 3600}${secure}`);
     return { name: a.name, role: a.role };
   }));
 

@@ -32,6 +32,16 @@ Para elegirla tú: `ADMIN_PASSWORD=miClave123 npm start`. Luego abre http://loca
 
 Las reglas fijas (20.000 por ticket, tope 10 por día, cierre sugerido viernes 19:00) están en `src/config.js`.
 
+## Publicarlo en internet (Railway)
+
+1. En https://railway.com inicia sesión con GitHub → **New Project** → **Deploy from GitHub repo** → `promo_comodines`.
+2. En el servicio: **Variables** → agrega `ADMIN_PASSWORD` (tu clave) y `DB_PATH` = `/data/sorteo.db`.
+3. Clic derecho en el servicio → **Attach Volume** → ruta de montaje `/data` (sin esto, los datos se borran en cada actualización).
+4. **Settings → Networking → Generate Domain**: ese es el enlace para los agentes.
+
+Cada `git push` a `main` vuelve a publicar el panel automáticamente; los datos del volumen se mantienen.
+El login se bloquea 15 minutos tras 8 intentos fallidos por usuario.
+
 ## Flujo del agente
 
 1. El usuario escribe pidiendo sus tickets.
