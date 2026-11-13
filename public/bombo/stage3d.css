@@ -1,0 +1,98 @@
+/* Pantalla 3D: estilo sobrio de transmisión de TV (sin neón) */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #020409; }
+body.transparent { background: transparent; }
+#stage {
+  position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px;
+  transform-origin: center center; color: #fff;
+  font-family: "Segoe UI", "Helvetica Neue", Roboto, Arial, sans-serif;
+}
+#gl, #gl canvas, #fx { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+#fx { pointer-events: none; }
+.hidden { display: none !important; }
+
+#logo { position: absolute; left: 40px; top: 30px; height: 112px; filter: drop-shadow(0 6px 18px rgba(0,0,0,.6)); }
+
+#title { position: absolute; left: 0; right: 0; top: 44px; text-align: center; transition: opacity .8s, transform .8s; }
+#title .t0 {
+  display: inline-block; padding: 4px 14px; margin-bottom: 10px; border-radius: 4px; background: #c8102e;
+  font-size: 18px; font-weight: 700; letter-spacing: 4px;
+}
+#title .t1 { font-size: 78px; font-weight: 800; letter-spacing: 14px; line-height: 1; text-shadow: 0 6px 30px rgba(0,0,0,.6); }
+#title .t2 { margin-top: 12px; font-size: 24px; font-weight: 500; letter-spacing: 3px; color: rgba(255,255,255,.72); text-transform: uppercase; }
+#stage.focus #title, #stage.results #title { opacity: 0; transform: translateY(-24px); }
+
+#badge {
+  position: absolute; left: 40px; bottom: 34px; padding: 8px 16px; border-radius: 4px;
+  background: rgba(234,179,8,.16); border: 1px solid rgba(234,179,8,.8); color: #fde68a; font-weight: 700; letter-spacing: 3px; font-size: 18px;
+}
+
+/* Rótulos inferiores (estilo "lower third") */
+#introLabels .lt {
+  position: absolute; top: 968px; width: 560px; margin-left: -280px; padding: 14px 20px 14px 26px;
+  background: linear-gradient(90deg, rgba(8,12,22,.88), rgba(8,12,22,.72)); backdrop-filter: blur(8px);
+  border-left: 5px solid #d4af37; border-radius: 2px; transition: opacity .8s;
+}
+#introLabels .lt.a { border-left-color: #f08a24; }
+#introLabels .lt.b { border-left-color: #3aa0e6; }
+#introLabels .lt .n { font-size: 26px; font-weight: 800; letter-spacing: 2px; }
+#introLabels .lt .s { font-size: 19px; color: rgba(255,255,255,.7); margin-top: 2px; }
+#stage.focus #introLabels, #stage.results #introLabels { opacity: 0; }
+
+/* Panel lateral */
+#panel { position: absolute; left: 1200px; top: 0; width: 680px; height: 1080px; }
+.ptitle {
+  position: absolute; top: 58px; left: 40px; right: 40px; font-size: 26px; font-weight: 800; letter-spacing: 6px;
+  padding-bottom: 12px; border-bottom: 2px solid rgba(255,255,255,.18);
+}
+#panel.a .ptitle { border-bottom-color: #f08a24; }
+#panel.b .ptitle { border-bottom-color: #3aa0e6; }
+.card {
+  position: absolute; left: 40px; right: 40px; text-align: center;
+  background: rgba(8,12,22,.80); backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,.12); border-top: 3px solid #d4af37; border-radius: 4px;
+  box-shadow: 0 20px 50px rgba(0,0,0,.45);
+}
+.card .k { font-size: 17px; font-weight: 700; letter-spacing: 6px; color: rgba(255,255,255,.6); }
+.prize { top: 128px; padding: 18px 20px 20px; }
+.prize .v { margin-top: 6px; font-size: 64px; font-weight: 800; color: #e9c46a; line-height: 1.05; white-space: nowrap; }
+.prize .r { margin-top: 6px; font-size: 19px; color: rgba(255,255,255,.65); }
+.prize.pulse { animation: pulse .6s ease; }
+@keyframes pulse { 50% { transform: scale(1.03); } }
+
+.winner { top: 560px; padding: 18px 20px 20px; animation: winIn .6s cubic-bezier(.2,1.2,.4,1); }
+@keyframes winIn { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+.winner .user { margin-top: 6px; font-size: 58px; font-weight: 800; line-height: 1.1; }
+.winner .code { font-size: 22px; color: rgba(255,255,255,.65); font-family: Consolas, ui-monospace, monospace; letter-spacing: 3px; }
+.winner .prize { margin-top: 8px; font-size: 38px; font-weight: 800; color: #e9c46a; }
+.winner.water { border-top-color: #38bdf8; animation: shake .5s; }
+.winner.water .user, .winner.water .code { text-decoration: line-through; opacity: .5; }
+.winner.water .prize { color: #7dd3fc; font-size: 46px; }
+@keyframes shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+
+.wlist { position: absolute; top: 820px; left: 40px; right: 40px; bottom: 30px; }
+.wlist .k { font-size: 17px; font-weight: 700; letter-spacing: 6px; color: rgba(255,255,255,.6); margin-bottom: 10px; }
+.wlist ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+.wlist li {
+  display: flex; justify-content: space-between; gap: 8px; padding: 7px 12px; font-size: 19px; white-space: nowrap; overflow: hidden;
+  background: rgba(8,12,22,.72); border-left: 3px solid rgba(255,255,255,.25); border-radius: 2px;
+}
+.wlist li b { color: #e9c46a; font-weight: 700; }
+.wlist li.new { border-left-color: #d4af37; animation: winIn .5s ease; }
+
+/* Resultados */
+#results {
+  position: absolute; inset: 0; padding: 120px 140px 60px; background: rgba(2,4,9,.55); backdrop-filter: blur(6px);
+}
+.rtitle { text-align: center; font-size: 64px; font-weight: 800; letter-spacing: 14px; }
+.rcols { display: grid; grid-template-columns: 1fr 1.4fr; gap: 40px; margin-top: 40px; }
+.rcol { background: rgba(8,12,22,.82); border-top: 3px solid #d4af37; border-radius: 4px; padding: 22px 26px; }
+.rcol.a { border-top-color: #f08a24; } .rcol.b { border-top-color: #3aa0e6; }
+.rcol h3 { margin: 0 0 16px; font-size: 26px; letter-spacing: 4px; text-transform: uppercase; }
+.rcol ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rcol.b ol { grid-template-columns: 1fr 1fr; }
+.rcol li { display: flex; justify-content: space-between; gap: 10px; font-size: 22px; padding: 8px 14px; background: rgba(255,255,255,.05); border-radius: 2px; }
+.rcol li b { color: #e9c46a; }
+
+#soundHint { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); padding: 12px 20px; border-radius: 6px; background: rgba(0,0,0,.6); font-size: 22px; cursor: pointer; }
+#err { position: absolute; left: 40px; right: 40px; top: 40%; padding: 20px; background: #7f1d1d; font-size: 24px; border-radius: 6px; }

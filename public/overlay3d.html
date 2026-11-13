@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bombo Winmax 3D · OBS</title>
+  <link rel="stylesheet" href="/bombo/stage3d.css">
+  <script type="importmap">
+    { "imports": { "three": "/vendor/three/build/three.module.js", "three/addons/": "/vendor/three/examples/jsm/" } }
+  </script>
+</head>
+<body>
+  <div id="stage">
+    <div id="gl"></div>
+    <canvas id="fx" width="1920" height="1080"></canvas>
+
+    <img id="logo" src="/brand/logo.png" alt="">
+    <div id="title">
+      <div class="t0">EN VIVO</div>
+      <div class="t1">GRAN SORTEO</div>
+      <div class="t2" id="drawName"></div>
+    </div>
+    <div id="badge" class="hidden">MODO ENSAYO</div>
+
+    <div id="introLabels">
+      <div class="lt a" id="labA"></div>
+      <div class="lt b" id="labB"></div>
+    </div>
+
+    <aside id="panel" class="hidden">
+      <div class="ptitle" id="pTitle"></div>
+      <div class="card prize" id="prizeCard">
+        <div class="k">SE SORTEA</div>
+        <div class="v" id="prizeLabel">—</div>
+        <div class="r" id="prizeLeft"></div>
+      </div>
+      <div class="card winner hidden" id="winnerCard">
+        <div class="k">GANADOR</div>
+        <div class="user" id="wUser"></div>
+        <div class="code" id="wCode"></div>
+        <div class="prize" id="wPrize"></div>
+      </div>
+      <div class="wlist">
+        <div class="k">GANADORES</div>
+        <ol id="wl"></ol>
+      </div>
+    </aside>
+
+    <section id="results" class="hidden">
+      <div class="rtitle">GANADORES</div>
+      <div class="rcols">
+        <div class="rcol a" id="resA"><h3>Comodines Halloween</h3><ol></ol></div>
+        <div class="rcol b" id="resB"><h3>Premios</h3><ol></ol></div>
+      </div>
+    </section>
+
+    <div id="soundHint" class="hidden">🔊 Haz clic para activar el sonido</div>
+    <div id="err" class="hidden"></div>
+  </div>
+
+  <!-- bombo.js aporta el sonido (Sfx) y el confeti; necesita Matter cargado -->
+  <script src="/vendor/matter.min.js"></script>
+  <script src="/bombo/bombo.js"></script>
+  <script type="module" src="/bombo/overlay3d.js"></script>
+</body>
+</html>

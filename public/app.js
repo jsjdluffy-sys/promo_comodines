@@ -512,6 +512,8 @@
     const S = st.state, d = st.draw;
     const url = `${location.origin}/overlay.html`;
     $('#stUrl').textContent = url; $('#stOpen').href = url;
+    const url3d = `${location.origin}/overlay3d.html`;
+    $('#stUrl3d').textContent = url3d; $('#stOpen3d').href = url3d;
     $('#stClients').textContent = st.overlayClients ? `🟢 ${st.overlayClients} pantalla(s) conectada(s)` : '⚪ Pantalla OBS no conectada';
     if (!soft) {
       $('#stDraw').innerHTML = st.draws.map((x) => `<option value="${esc(x.key)}" ${x.key === S.drawKey ? 'selected' : ''}>${esc(x.name)} · ${fmtDay(x.key)}</option>`).join('');
@@ -608,6 +610,7 @@
     } catch { /* toast ya mostrado */ }
     setTimeout(() => renderStream(true), 9000);
   });
+  $('#stCopy3d').addEventListener('click', () => navigator.clipboard.writeText($('#stUrl3d').textContent).then(() => toast('Enlace 3D copiado')));
   $('#stCopy').addEventListener('click', () => navigator.clipboard.writeText($('#stUrl').textContent).then(() => toast('Enlace copiado')));
   $('#stClearRehearsal').addEventListener('click', async () => {
     if (!confirm('¿Borrar todos los resultados de ensayo de este sorteo?')) return;

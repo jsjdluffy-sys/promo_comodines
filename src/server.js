@@ -17,6 +17,10 @@ function createApp(db) {
   // Motor de físicas servido localmente (funciona sin internet en OBS).
   app.get('/vendor/matter.min.js', (req, res) =>
     res.sendFile(path.join(path.dirname(require.resolve('matter-js')), 'matter.min.js')));
+  // three.js (3D) y cannon-es (física 3D) para la pantalla overlay3d.html
+  const NM = path.join(__dirname, '..', 'node_modules');
+  app.use('/vendor/three', express.static(path.join(NM, 'three')));
+  app.get('/vendor/cannon-es.js', (req, res) => res.type('application/javascript').sendFile(path.join(NM, 'cannon-es', 'dist', 'cannon-es.js')));
   app.use('/sitio-publico', express.static(path.join(__dirname, '..', 'sitio-publico')));
 
   // ---- Autenticación ----

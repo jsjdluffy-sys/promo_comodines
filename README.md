@@ -82,7 +82,12 @@ npm test
 
 ## Sorteo en vivo (pestaña 🎬 Stream, solo admin)
 
-**En OBS:** agrega una *Fuente de navegador* con la URL `http://localhost:3000/overlay.html`, ancho 1920, alto 1080,
+**En OBS (versión 3D realista, recomendada):** *Fuente de navegador* con la URL `http://localhost:3000/overlay3d.html`,
+ancho 1920, alto 1080, y **"Controlar audio vía OBS"**. Requiere la aceleración por hardware de OBS activada
+(Ajustes → Avanzado → Fuentes → "Habilitar aceleración por hardware de la fuente de navegador", viene activada).
+Si se ve lento: `overlay3d.html?quality=low`. La pantalla también baja su calidad sola si el PC no alcanza.
+
+**Respaldo 2D:** *Fuente de navegador* con la URL `http://localhost:3000/overlay.html`, ancho 1920, alto 1080,
 y marca **"Controlar audio vía OBS"**. Para usarla encima de tu propio fondo: `overlay.html?transparent=1`.
 
 **Durante el stream:**

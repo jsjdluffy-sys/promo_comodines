@@ -9,8 +9,10 @@
   },
   "license": "ISC",
   "dependencies": {
+    "cannon-es": "0.20.0",
     "express": "^4.21.2",
-    "matter-js": "0.20.0"
+    "matter-js": "0.20.0",
+    "three": "0.186.1"
   },
   "private": true,
   "engines": {
