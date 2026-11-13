@@ -283,6 +283,12 @@ function createApp(db) {
     return r;
   }));
   app.get('/api/draws/:key/results', auth, handle((req) => engine.results(req.params.key, req.query.rehearsal === '1')));
+  app.post('/api/extractions/:id/discard', auth, adminOnly, handle((req) => {
+    const r = engine.discardExtraction(Number(req.params.id), req.agent);
+    live.last = null; live.prizeId = r.prizeId; live.busyUntil = Date.now() + 3500;
+    broadcast('discard', { discard: r });
+    return r;
+  }));
   app.post('/api/extractions/:id/void', auth, adminOnly, handle((req) => {
     const r = engine.voidExtraction(Number(req.params.id), req.body?.reason, req.agent);
     live.last = null; broadcast('reload', {});

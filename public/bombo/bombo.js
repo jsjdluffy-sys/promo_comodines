@@ -234,6 +234,19 @@
       [3, 7, 10, 15].forEach((s) => this.brass(n(s), t + o + 0.6, 1.3, 0.09));
       this.cymbal(t + o + 0.6);
     }
+    splash() { // "al agua": tono que baja + chapuzón
+      if (!this.ok) return;
+      const ctx = this.ctx, t = ctx.currentTime;
+      const o = ctx.createOscillator(); o.type = 'triangle';
+      o.frequency.setValueAtTime(620, t); o.frequency.exponentialRampToValueAtTime(110, t + 0.9);
+      const og = ctx.createGain(); og.gain.setValueAtTime(0.14, t); og.gain.exponentialRampToValueAtTime(0.001, t + 1);
+      o.connect(og).connect(this.master); o.start(t); o.stop(t + 1.05);
+      const src = ctx.createBufferSource(); src.buffer = this.noise;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(2500, t + 0.7); lp.frequency.exponentialRampToValueAtTime(300, t + 1.6);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0, t + 0.7); g.gain.linearRampToValueAtTime(0.35, t + 0.75); g.gain.exponentialRampToValueAtTime(0.001, t + 1.7);
+      src.connect(lp).connect(g).connect(this.master); src.start(t + 0.7, 0, 1.1);
+    }
     pop() {
       if (!this.ok) return;
       const ctx = this.ctx, t = ctx.currentTime;

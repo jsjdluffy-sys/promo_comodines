@@ -92,6 +92,10 @@ y marca **"Controlar audio vía OBS"**. Para usarla encima de tu propio fondo: `
 4. **🌀 Mezclar** y **🎱 SACAR PELOTITA**: suspenso, la pelotita sube por el tubo, se revela el ganador con fanfarria y confeti.
    Las demás pelotitas del ganador salen de ese bombo (máximo 1 premio por persona por bombo).
 
+**💧 Al agua:** si el ganador no está en el vivo, presiona "Al agua" (bajo el último resultado o en la tabla de
+ganadores). La pelotita cae al agua en pantalla, ese jugador sale de ese bombo y el premio se vuelve a sortear:
+saca otra pelotita. "Anular" es distinto: es para errores y el jugador vuelve a participar.
+
 **Aleatoriedad:** cada extracción usa el generador criptográfico del sistema (`crypto.randomInt`) sobre todos los
 tickets vigentes del bombo; cada ticket tiene exactamente la misma probabilidad. Cada resultado queda en la auditoría
 con el tamaño del bombo y la posición elegida. La animación solo muestra el resultado.

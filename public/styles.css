@@ -187,3 +187,5 @@ label.check input { width: auto; margin: 0; }
 .chip.clickable { cursor: pointer; }
 .blocked-card { border-color: var(--red); text-align: center; padding: 28px; }
 @media (max-width: 600px) { .urns { grid-template-columns: 1fr; } #drawSelect { min-width: 0; width: 100%; } }
+.btn.water { border-color: #38bdf8; color: #7dd3fc; }
+.btn.water:hover { background: rgba(56,189,248,.15); }

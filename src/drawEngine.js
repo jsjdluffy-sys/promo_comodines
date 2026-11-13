@@ -77,7 +77,7 @@ function createDrawEngine(db, svc) {
     return db.prepare(`SELECT t.id, t.code, t.player_id, p.username FROM tickets t JOIN players p ON p.id = t.player_id
                        WHERE t.draw_key = ? AND t.urn = ? AND t.voided_at IS NULL
                        AND t.player_id NOT IN (SELECT player_id FROM extractions
-                         WHERE draw_key = ? AND urn = ? AND rehearsal = ? AND voided_at IS NULL)
+                         WHERE draw_key = ? AND urn = ? AND rehearsal = ? AND (voided_at IS NULL OR discarded = 1))
                        ORDER BY t.seq`).all(drawKey, urn, drawKey, urn, rehearsal ? 1 : 0);
   }
 
@@ -123,6 +123,17 @@ function createDrawEngine(db, svc) {
       .map((e) => ({ ...e, user: maskUser(e.username) }));
   }
 
+  // "Al agua": el ganador no estaba en el vivo. Sale de este bombo y el premio vuelve a sortearse.
+  function discardExtraction(id, agent) {
+    const e = db.prepare('SELECT * FROM extractions WHERE id = ?').get(id);
+    if (!e || e.voided_at) throw new RuleError('NOT_FOUND', 'Extracción no encontrada.');
+    db.prepare(`UPDATE extractions SET voided_at = ?, void_reason = 'Al agua: no estaba en el vivo', discarded = 1 WHERE id = ?`)
+      .run(new Date().toISOString(), id);
+    audit(agent.id, e.rehearsal ? 'draw.discard.rehearsal' : 'draw.discard', e.player_id, { id, code: e.code, urn: e.urn });
+    const prize = db.prepare('SELECT * FROM prizes WHERE id = ?').get(e.prize_id);
+    return { id, code: e.code, urn: e.urn, p: e.player_id, prizeId: e.prize_id, prize: prize?.label };
+  }
+
   function voidExtraction(id, reason, agent) {
     const r = String(reason || '').trim();
     if (r.length < 3) throw new RuleError('INVALID', 'Escribe el motivo.');
@@ -144,7 +155,9 @@ function createDrawEngine(db, svc) {
     const d = getDraw(drawKey);
     const tickets = db.prepare(`SELECT t.code, t.urn, t.player_id, p.username FROM tickets t JOIN players p ON p.id = t.player_id
                                 WHERE t.draw_key = ? AND t.voided_at IS NULL ORDER BY t.urn, t.seq`).all(drawKey);
-    const winners = results(drawKey, rehearsal).filter((e) => !e.voided_at);
+    const all = results(drawKey, rehearsal);
+    const winners = all.filter((e) => !e.voided_at);
+    const discarded = all.filter((e) => e.discarded).map((e) => ({ urn: e.urn, p: e.player_id, code: e.code }));
     const out = (urn) => tickets.filter((t) => t.urn === urn).map((t) => ({ code: t.code, user: maskUser(t.username), p: t.player_id }));
     return {
       draw: { key: d.key, name: d.name, cutoff_at: d.cutoff_at, comodines: !!d.comodines_enabled },
@@ -155,11 +168,12 @@ function createDrawEngine(db, svc) {
       winners: winners.map((w) => ({
         id: w.id, urn: w.urn, code: w.code, user: w.user, p: w.player_id, prize: w.prize_label, kind: w.prize_kind, at: w.created_at,
       })),
+      discarded,
       rehearsal: !!rehearsal,
     };
   }
 
-  return { prizes, savePrize, deletePrize, pool, extract, results, voidExtraction, clearRehearsal, snapshot, URN_NAMES };
+  return { prizes, savePrize, deletePrize, pool, extract, results, voidExtraction, discardExtraction, clearRehearsal, snapshot, URN_NAMES };
 }
 
 module.exports = { createDrawEngine, maskUser };

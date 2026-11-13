@@ -109,6 +109,7 @@
   function loadDrums() {
     for (const u of ['A', 'B']) {
       const winnersHere = new Set(data.winners.filter((w) => w.urn === u).map((w) => w.p));
+      (data.discarded || []).filter((d) => d.urn === u).forEach((d) => winnersHere.add(d.p)); // los "al agua" ya no participan
       drums[u].setTickets(data.tickets[u], winnersHere);
     }
   }
@@ -169,6 +170,29 @@
     busy = false;
   }
 
+  // ---------- "Al agua": el ganador no estaba en el vivo ----------
+  let splash = [];
+  async function runDiscard(d) {
+    while (busy) await wait(200);
+    data.winners = data.winners.filter((w) => w.id !== d.id);
+    (data.discarded = data.discarded || []).push({ urn: d.urn, p: d.p, code: d.code });
+    const pz = data.prizes.find((p) => p.id === d.prizeId); if (pz) pz.remaining += 1;
+    state.prizeId = d.prizeId;
+    sfx.splash();
+    if (presented && presented.code === d.code) presented.falling = { vy: -6, t: 0 };
+    const card = $('#winnerCard');
+    if (!card.classList.contains('hidden')) {
+      $('#wPrize').textContent = '💧 ¡AL AGUA!';
+      card.classList.add('water');
+    }
+    drums[d.urn].removePlayer(d.p);
+    renderWinners();
+    await wait(2600);
+    card.classList.add('hidden'); card.classList.remove('water');
+    presented = null;
+    renderPrize();
+  }
+
   function tubePath(mouth) {
     // curva cúbica: sube desde la boca del bombo y baja al punto de presentación
     // entra al punto de presentación por la izquierda, sin cruzar la tarjeta del premio
@@ -191,6 +215,7 @@
     es.addEventListener('mix', (e) => { state = JSON.parse(e.data).state; applyMix(); });
     es.addEventListener('prize', (e) => { state = JSON.parse(e.data).state; renderPrize(); });
     es.addEventListener('clear', (e) => { state = JSON.parse(e.data).state; presented = null; $('#winnerCard').classList.add('hidden'); });
+    es.addEventListener('discard', (e) => { const msg = JSON.parse(e.data); state = msg.state; runDiscard(msg.discard); });
     es.addEventListener('extract', (e) => {
       const msg = JSON.parse(e.data);
       state = msg.state;
@@ -227,10 +252,44 @@
       halo.addColorStop(0, 'rgba(255,220,90,0.55)'); halo.addColorStop(1, 'rgba(255,220,90,0)');
       ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(PRES.x, PRES.y, PRES.r * 2.1, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
-      drawBall(ctx, PRES.x, PRES.y + bob, PRES.r * sc, presented.color, presented.angle, presented.code, 1, '#ffd23f');
+      let py = PRES.y + bob, alpha = 1;
+      if (presented.falling) { // cae al agua
+        const f = presented.falling;
+        f.t += dt; f.vy += 60 * dt; f.y = (f.y || 0) + f.vy * dt * 60;
+        py = PRES.y + f.y; alpha = clamp(1 - (py - 700) / 300, 0, 1);
+        if (!f.splashed && py > 980) { f.splashed = true; makeSplash(PRES.x, 1000); }
+      }
+      if (alpha > 0) drawBall(ctx, PRES.x, py, PRES.r * sc, presented.color, presented.angle, presented.code, alpha, presented.falling ? null : '#ffd23f');
     }
+    drawSplash(dt);
     confetti.draw(ctx);
     requestAnimationFrame(frame);
+  }
+
+  function makeSplash(x, y) {
+    for (let i = 0; i < 90; i++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6, v = 6 + Math.random() * 14;
+      splash.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: 3 + Math.random() * 6, life: 1.2 + Math.random() * 0.6 });
+    }
+    splash.push({ ring: true, x, y, t: 0 });
+  }
+  function drawSplash(dt) {
+    if (!splash.length) return;
+    ctx.save();
+    for (const s of splash) {
+      if (s.ring) {
+        s.t += dt;
+        ctx.strokeStyle = `rgba(120,200,255,${Math.max(0, 0.8 - s.t * 0.6)})`; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.ellipse(s.x, s.y, 40 + s.t * 260, 10 + s.t * 50, 0, 0, Math.PI * 2); ctx.stroke();
+        s.life = 1.4 - s.t;
+        continue;
+      }
+      s.vy += 0.5 * dt * 60; s.x += s.vx * dt * 60; s.y += s.vy * dt * 60; s.life -= dt;
+      ctx.fillStyle = `rgba(140,210,255,${clamp(s.life, 0, 1) * 0.9})`;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+    splash = splash.filter((s) => s.life > 0);
   }
 
   function drawTube(scene) {

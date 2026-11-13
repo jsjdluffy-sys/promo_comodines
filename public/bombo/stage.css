@@ -68,6 +68,10 @@ body.transparent { background: transparent; }
   animation: winIn .7s cubic-bezier(.2,1.4,.4,1);
 }
 @keyframes winIn { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.winner.water { border-color: #38bdf8; box-shadow: 0 0 60px rgba(56,189,248,.5); animation: shake .5s; }
+.winner.water .user, .winner.water .code { text-decoration: line-through; opacity: .55; }
+.winner.water .prize { color: #7dd3fc; font-size: 52px; text-shadow: 0 0 22px rgba(56,189,248,.8); }
+@keyframes shake { 20%, 60% { transform: translateX(-10px); } 40%, 80% { transform: translateX(10px); } }
 .winner .k { font-size: 30px; font-weight: 900; letter-spacing: 6px; color: #ffd23f; }
 .winner .user { font-size: 60px; font-weight: 900; line-height: 1.1; }
 .winner .code { font-size: 28px; color: #b9d3ff; font-family: ui-monospace, Consolas, monospace; letter-spacing: 2px; }

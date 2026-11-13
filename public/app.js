@@ -546,15 +546,22 @@
 
     const last = S.last;
     $('#stLast').classList.toggle('hidden', !last);
-    if (last) $('#stLast').innerHTML = `🏆 <b>${esc(last.prize.label)}</b> → ticket <b>${esc(last.code)}</b> · ${esc(last.user)} ${S.rehearsal ? '<span class="pill">ensayo</span>' : ''}`;
+    if (last) {
+      $('#stLast').innerHTML = `🏆 <b>${esc(last.prize.label)}</b> → ticket <b>${esc(last.code)}</b> · ${esc(last.user)} ${S.rehearsal ? '<span class="pill">ensayo</span>' : ''}
+        <div class="row wrap" style="margin-top:10px"><button class="btn water" data-discard="${last.id}">💧 Al agua (no está en el vivo)</button>
+        <span class="muted" style="font-size:.85rem">Sale del bombo y el premio "${esc(last.prize.label)}" se vuelve a sortear.</span></div>`;
+      $('#stLast [data-discard]').addEventListener('click', () => discard(last.id, last.code));
+    }
 
     $('#stResults').innerHTML = st.results.map((r, i) => `<tr class="${r.voided_at ? 'voided' : ''}">
         <td>${i + 1}</td><td>${urnName[r.urn]}</td><td><b>${esc(r.prize_label)}</b></td><td>${esc(r.username)}</td><td>${esc(r.code)}</td>
         <td>${fmtDate(r.created_at)}</td>
-        <td>${r.voided_at ? `<span class="void-info">Anulada: ${esc(r.void_reason)}</span>` : `<button class="btn small" data-xvoid="${r.id}">Anular</button>`}</td></tr>`).join('')
+        <td>${r.discarded ? '<span class="void-info">💧 Al agua</span>' : r.voided_at ? `<span class="void-info">Anulada: ${esc(r.void_reason)}</span>`
+          : `<button class="btn small water" data-discard="${r.id}" data-code="${esc(r.code)}">💧 Al agua</button> <button class="btn small" data-xvoid="${r.id}">Anular</button>`}</td></tr>`).join('')
       || '<tr><td colspan="7" class="muted">Aún no hay ganadores.</td></tr>';
+    $('#stResults').querySelectorAll('[data-discard]').forEach((b) => b.addEventListener('click', () => discard(Number(b.dataset.discard), b.dataset.code)));
     $('#stResults').querySelectorAll('[data-xvoid]').forEach((b) => b.addEventListener('click', async () => {
-      const reason = prompt('¿Anular esta extracción? El premio vuelve a estar disponible y el jugador vuelve a participar.\n\nMotivo:');
+      const reason = prompt('¿Anular esta extracción por un ERROR? El premio vuelve a estar disponible y el jugador VUELVE a participar.\n(Si no estaba en el vivo, usa "Al agua").\n\nMotivo:');
       if (!reason) return;
       try { await api(`/api/extractions/${b.dataset.xvoid}/void`, { body: { reason } }); loadStream(); } catch (e) { toast(e.message, true); }
     }));
@@ -573,6 +580,15 @@
         try { await api(`/api/draws/${S.drawKey}/prizes/${b.dataset.pdel}/delete`, { body: {} }); loadStream(); } catch (e) { toast(e.message, true); }
       }));
     }
+  }
+
+  async function discard(id, code) {
+    if (!confirm(`💧 ¿Mandar AL AGUA el ticket ${code || ''}?\n\nEse jugador sale de este bombo (no vuelve a participar en él) y el premio se vuelve a sortear.`)) return;
+    try {
+      const r = await api(`/api/extractions/${id}/discard`, { body: {} });
+      toast(`💧 ${r.code} al agua. Saca otra pelotita para "${r.prize}"`);
+      st = await api('/api/live/control'); renderStream();
+    } catch (e) { toast(e.message, true); }
   }
 
   $('#stDraw').addEventListener('change', (e) => act({ action: 'draw', drawKey: e.target.value }));

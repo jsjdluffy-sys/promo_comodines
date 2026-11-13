@@ -274,3 +274,25 @@ test('anular tickets sueltos devuelve el cupo del día', () => {
   assert.equal(svc.preview(p.id, 200000, now).toDeliver, 2);
   assert.equal(svc.preview(p.id, 200000, now).increase, 40000);
 });
+
+test('al agua: el ganador ausente sale del bombo y el premio se vuelve a sortear', () => {
+  const { svc, engine, admin } = setupDraw();
+  const now = cl('2026-11-11T10:00:00'), after = cl('2026-11-14T21:00:00');
+  const ana = svc.createPlayer('ana', 1).id, beto = svc.createPlayer('beto', 1).id;
+  svc.confirm({ playerId: ana, total: 200000, destination: 'dividir', aCount: 5, agentId: 1, now });
+  svc.confirm({ playerId: beto, total: 20000, destination: 'premios', agentId: 1, now });
+  const p25 = engine.prizes('2026-11-14').find((p) => p.label === '$25.000');
+  const w = engine.extract({ drawKey: '2026-11-14', urn: 'B', prizeId: p25.id, rehearsal: false, agent: admin, now: after });
+  assert.equal(engine.prizes('2026-11-14').find((p) => p.id === p25.id).remaining, 0);
+  const d = engine.discardExtraction(w.id, admin);
+  assert.equal(d.p, w.p);
+  assert.equal(engine.prizes('2026-11-14').find((p) => p.id === p25.id).remaining, 1); // el premio vuelve
+  assert.ok(engine.pool('2026-11-14', 'B', false).every((t) => t.player_id !== w.p)); // el ausente ya no participa en B
+  const w2 = engine.extract({ drawKey: '2026-11-14', urn: 'B', prizeId: p25.id, rehearsal: false, agent: admin, now: after });
+  assert.notEqual(w2.p, w.p);
+  const snap = engine.snapshot('2026-11-14', false);
+  assert.deepEqual(snap.winners.map((x) => x.code), [w2.code]);
+  assert.equal(snap.discarded.length, 1);
+  // si ana fue al agua en B, igual puede participar en el bombo A
+  if (w.p === ana) assert.ok(engine.pool('2026-11-14', 'A', false).some((t) => t.player_id === ana));
+});

@@ -153,6 +153,7 @@ function migrate(db) {
   add('claims', 'voided_by', 'INTEGER REFERENCES agents(id)');
   add('claims', 'void_reason', 'TEXT');
   add('tickets', 'voided_at', 'TEXT');
+  add('extractions', 'discarded', 'INTEGER NOT NULL DEFAULT 0'); // 1 = "al agua" (no estaba en el vivo)
 }
 
 module.exports = { openDb };
