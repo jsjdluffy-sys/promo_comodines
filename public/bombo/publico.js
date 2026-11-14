@@ -15,7 +15,8 @@
 
   // ---------- Bombos: 3D o 2D ----------
   let highlight = () => {}, setSound = () => {};
-  const webglOK = (() => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; } })();
+  // la escena 3D (three.js) necesita WebGL 2
+  const webglOK = (() => { try { return !!document.createElement('canvas').getContext('webgl2'); } catch { return false; } })();
 
   // Aviso pequeño cuando se muestra la versión 2D, con el motivo (ayuda a diagnosticar).
   function note2D(reason) {
@@ -75,12 +76,17 @@
       search(); // si ya había una búsqueda escrita
     }, { once: true });
     // si la escena 3D falla en este dispositivo, se usa la versión 2D
-    import('./overlay3d.js').catch((e) => { console.warn('3D no disponible, usando 2D', e); start2D('no se pudo cargar la escena 3D (faltan archivos de la carpeta vendor)'); });
+    import('./overlay3d.js').catch((e) => {
+      console.warn('3D no disponible, usando 2D', e);
+      const msg = String(e && e.message || e);
+      const missing = /fetch|import|module|404|Failed to load|MIME/i.test(msg);
+      start2D(missing ? `faltan archivos 3D en el sitio (carpeta vendor) · ${msg}` : `error al iniciar el 3D · ${msg}`);
+    });
   }
 
   if (params.has('2d')) start2D();
   else if (webglOK) start3D();
-  else start2D('tu navegador no tiene 3D activado (revisa la aceleración por hardware)');
+  else start2D('tu navegador no tiene WebGL 2 activado (revisa la aceleración por hardware de Chrome)');
 
   let soundOn = false;
   $('#soundBtn').addEventListener('click', () => {
