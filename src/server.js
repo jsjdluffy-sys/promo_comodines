@@ -22,6 +22,14 @@ function createApp(db) {
   app.use('/vendor/three', express.static(path.join(NM, 'three')));
   app.get('/vendor/cannon-es.js', (req, res) => res.type('application/javascript').sendFile(path.join(NM, 'cannon-es', 'dist', 'cannon-es.js')));
   app.use('/sitio-publico', express.static(path.join(__dirname, '..', 'sitio-publico')));
+  // Si todavía no se generó la página pública, mostrar un aviso claro en vez de "Cannot GET".
+  app.get(['/sitio-publico', '/sitio-publico/'], (req, res) => {
+    res.status(404).type('html').send(`<!doctype html><meta charset="utf-8"><title>Página pública</title>
+      <body style="font-family:Segoe UI,Arial;background:#0f0d16;color:#ece9f5;display:grid;place-items:center;min-height:100vh;margin:0">
+      <div style="max-width:520px;text-align:center;padding:24px"><h2>Todavía no hay página pública</h2>
+      <p>Vuelve al panel, pestaña <b>🎬 Stream</b>, y presiona <b>🌐 Generar página pública</b>.
+      Cuando aparezca el mensaje ✅, presiona <b>👀 Ver cómo queda</b> otra vez.</p></div>`);
+  });
 
   // ---- Autenticación ----
   const getCookie = (req, name) => {
