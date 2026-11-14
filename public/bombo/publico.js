@@ -1,10 +1,11 @@
-/* Página pública: bombos girando con los tickets reales, búsqueda de tus pelotitas y lista completa. */
+/* Página pública: bombos con los tickets reales (3D si el dispositivo lo soporta, si no 2D),
+ * búsqueda de tus pelotitas y lista completa. */
 (async () => {
-  const { Drum, Sfx, Backdrop, W, H } = Bombo;
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   // Mismo enmascarado que el servidor: así el jugador puede buscar con su usuario completo.
   const mask = (u) => { u = String(u || ''); if (u.length <= 4) return u.slice(0, 1) + '***'; if (u.length <= 6) return u.slice(0, 2) + '***' + u.slice(-1); return u.slice(0, 3) + '***' + u.slice(-2); };
+  const params = new URLSearchParams(location.search);
 
   const data = await (await fetch('data.json', { cache: 'no-store' })).json();
   const hasA = data.tickets.A.length > 0 || data.prizes.some((p) => p.urn === 'A');
@@ -12,46 +13,69 @@
   const closed = new Date(data.draw.cutoff_at) <= new Date();
   $('#status').textContent = data.winners.length ? '✅ Sorteo realizado' : closed ? '🔒 Tickets cerrados · ¡nos vemos en el stream!' : '🎟️ Recibiendo tickets';
 
-  // ---------- Bombos ----------
-  const canvas = $('#c'), ctx = canvas.getContext('2d');
-  const sfx = new Sfx(); sfx.enabled = false;
-  const backdrop = new Backdrop();
-  const small = innerWidth < 700;
-  const drums = {};
-  const winnersBy = (u) => new Set(data.winners.filter((w) => w.urn === u).map((w) => w.p));
-  if (hasA) {
-    drums.A = new Drum('A', sfx); drums.A.maxBalls = small ? 120 : 230;
-    drums.A.setTickets(data.tickets.A, winnersBy('A'));
-    Object.assign(drums.A.layout, { x: 540, y: 590, s: 0.7, a: 1 });
+  // ---------- Bombos: 3D o 2D ----------
+  let highlight = () => {}, setSound = () => {};
+  const webglOK = (() => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; } })();
+
+  function start2D() {
+    const { Drum, Sfx, Backdrop, W, H } = Bombo;
+    $('#wrap3d').classList.add('hidden');
+    const canvas = $('#c'); canvas.classList.remove('hidden');
+    const ctx = canvas.getContext('2d');
+    const sfx = new Sfx(); sfx.enabled = false;
+    const backdrop = new Backdrop();
+    const small = innerWidth < 700;
+    const drums = {};
+    const out = (u) => {
+      const s = new Set(data.winners.filter((w) => w.urn === u).map((w) => w.p));
+      (data.discarded || []).filter((d) => d.urn === u).forEach((d) => s.add(d.p));
+      return s;
+    };
+    if (hasA) {
+      drums.A = new Drum('A', sfx); drums.A.maxBalls = small ? 120 : 230;
+      drums.A.setTickets(data.tickets.A, out('A'));
+      Object.assign(drums.A.layout, { x: 540, y: 590, s: 0.7, a: 1 });
+    }
+    drums.B = new Drum('B', sfx); drums.B.maxBalls = small ? 120 : 230;
+    drums.B.setTickets(data.tickets.B, out('B'));
+    Object.assign(drums.B.layout, hasA ? { x: 1380, y: 590, s: 0.7, a: 1 } : { x: 960, y: 590, s: 0.78, a: 1 });
+    Object.values(drums).forEach((d) => d.setMix(0.3));
+    setInterval(() => {
+      Object.values(drums).forEach((d) => d.setMix(0.85)); sfx.setMix(0.8);
+      setTimeout(() => { Object.values(drums).forEach((d) => d.setMix(0.3)); sfx.setMix(0.2); }, 2600);
+    }, 9000);
+    let last = performance.now();
+    (function frame(now) {
+      const dt = Math.min((now - last) / 1000, 0.05); last = now;
+      Object.values(drums).forEach((d) => d.step(dt));
+      ctx.clearRect(0, 0, W, H);
+      backdrop.draw(ctx, now / 1000);
+      Object.values(drums).forEach((d) => d.draw(ctx, { showHidden: true }));
+      requestAnimationFrame(frame);
+    })(last);
+    highlight = (fn) => Object.values(drums).forEach((d) => (d.highlightFn = fn));
+    setSound = (on) => { sfx.init(); sfx.enabled = on; if (sfx.ctx) sfx.ctx.resume(); sfx.setMix(on ? 0.3 : 0); };
   }
-  drums.B = new Drum('B', sfx); drums.B.maxBalls = small ? 120 : 230;
-  drums.B.setTickets(data.tickets.B, winnersBy('B'));
-  Object.assign(drums.B.layout, hasA ? { x: 1380, y: 590, s: 0.7, a: 1 } : { x: 960, y: 590, s: 0.78, a: 1 });
-  Object.values(drums).forEach((d) => d.setMix(0.3));
 
-  // Mezcla fuerte por momentos, como en el stream
-  setInterval(() => {
-    Object.values(drums).forEach((d) => d.setMix(0.85));
-    sfx.setMix(0.8);
-    setTimeout(() => { Object.values(drums).forEach((d) => d.setMix(0.3)); sfx.setMix(0.2); }, 2600);
-  }, 9000);
-
-  let last = performance.now();
-  function frame(now) {
-    const dt = Math.min((now - last) / 1000, 0.05); last = now;
-    Object.values(drums).forEach((d) => d.step(dt));
-    ctx.clearRect(0, 0, W, H);
-    backdrop.draw(ctx, now / 1000);
-    Object.values(drums).forEach((d) => d.draw(ctx, { showHidden: true }));
-    requestAnimationFrame(frame);
+  function start3D() {
+    $('#c').classList.add('hidden');
+    $('#wrap3d').classList.remove('hidden');
+    window.BOMBO3D = { staticData: 'data.json' };
+    window.addEventListener('bombo3d-ready', () => {
+      highlight = (fn) => window.Bombo3D.highlight(fn);
+      setSound = (on) => window.Bombo3D.setSound(on);
+      search(); // si ya había una búsqueda escrita
+    }, { once: true });
+    // si la escena 3D falla en este dispositivo, se usa la versión 2D
+    import('./overlay3d.js').catch((e) => { console.warn('3D no disponible, usando 2D', e); start2D(); });
   }
-  requestAnimationFrame(frame);
 
+  if (webglOK && !params.has('2d')) start3D(); else start2D();
+
+  let soundOn = false;
   $('#soundBtn').addEventListener('click', () => {
-    sfx.init(); sfx.enabled = !sfx.enabled;
-    if (sfx.ctx) sfx.ctx.resume();
-    sfx.setMix(0.3);
-    $('#soundBtn').textContent = sfx.enabled ? '🔊 Sonido' : '🔇 Sonido';
+    soundOn = !soundOn; setSound(soundOn);
+    $('#soundBtn').textContent = soundOn ? '🔊 Sonido' : '🔇 Sonido';
   });
 
   // ---------- Premios y ganadores ----------
@@ -87,14 +111,14 @@
   const all = [...data.tickets.A.map((t) => ({ ...t, urn: 'A' })), ...data.tickets.B.map((t) => ({ ...t, urn: 'B' }))];
   function search() {
     const q = $('#q').value.trim();
-    if (!q) { mineCodes = new Set(); Object.values(drums).forEach((d) => (d.highlightFn = null)); $('#mine').innerHTML = ''; renderList(); return; }
+    if (!q) { mineCodes = new Set(); highlight(null); $('#mine').innerHTML = ''; renderList(); return; }
     const qc = q.toUpperCase();
     let hits = all.filter((t) => t.code === qc);
     if (hits.length) hits = all.filter((t) => t.p === hits[0].p);
     else { const m = mask(q); hits = all.filter((t) => t.user === m || t.user.toLowerCase() === q.toLowerCase()); }
     mineCodes = new Set(hits.map((h) => h.code));
     const pset = new Set(hits.map((h) => h.p));
-    Object.values(drums).forEach((d) => (d.highlightFn = hits.length ? (t) => pset.has(t.p) : null));
+    highlight(hits.length ? (t) => pset.has(t.p) : null);
     if (!hits.length) { $('#mine').innerHTML = '<p class="muted">No encontramos tickets con ese dato. Revisa que esté bien escrito.</p>'; renderList(); return; }
     const won = new Set(data.winners.map((w) => w.code));
     const box = (u) => {

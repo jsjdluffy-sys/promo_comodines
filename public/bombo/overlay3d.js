@@ -6,14 +6,17 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as CANNON from '/vendor/cannon-es.js';
+import * as CANNON from 'cannon-es';
 
 const { Sfx, Confetti } = window.Bombo;
 const W = 1920, H = 1080;
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.search);
+// Modo "incrustado" (página pública): lee los tickets de data.json en vez del servidor en vivo.
+const CFG = window.BOMBO3D || {};
+const EMBED = !!CFG.staticData;
 const transparent = params.get('transparent') === '1';
-const LOW = params.get('quality') === 'low';
+const LOW = params.get('quality') === 'low' || (EMBED && innerWidth < 800); // celulares: versión liviana
 if (transparent) document.body.classList.add('transparent');
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -27,7 +30,16 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 
 // ---------- Escalado del escenario ----------
 const stage = $('#stage');
-function fit() { stage.style.transform = `translate(-50%, -50%) scale(${Math.min(innerWidth / W, innerHeight / H)})`; }
+function fit() {
+  if (EMBED) { // se ajusta al ancho del recuadro de la página
+    const wrap = stage.parentElement, k = wrap.clientWidth / W;
+    stage.style.left = '0'; stage.style.top = '0'; stage.style.transformOrigin = '0 0';
+    stage.style.transform = `scale(${k})`; wrap.style.height = `${H * k}px`;
+    return;
+  }
+  stage.style.transform = `translate(-50%, -50%) scale(${Math.min(innerWidth / W, innerHeight / H)})`;
+}
+if (EMBED) stage.classList.add('embed');
 addEventListener('resize', fit); fit();
 
 // ---------- Renderer ----------
@@ -39,7 +51,8 @@ try {
   $('#err').classList.remove('hidden');
   throw e;
 }
-const PR = clamp(Number(params.get('pr')) || 1, 0.25, 2); // resolución interna (1 = 1080p)
+// resolución interna (1 = 1080p). En la página pública se ajusta al tamaño real del recuadro.
+const PR = clamp(Number(params.get('pr')) || (EMBED ? (stage.parentElement.clientWidth / W) * (devicePixelRatio || 1) : 1), 0.3, EMBED ? 1 : 2);
 renderer.setPixelRatio(PR);
 renderer.setSize(W, H, false);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -283,6 +296,14 @@ class Drum3D {
     this.balls.push(ball);
     return ball;
   }
+  setHighlight(fn) { // ilumina en dorado las pelotitas del jugador buscado
+    this.highlightFn = fn;
+    for (const b of this.balls) {
+      const on = !!(fn && fn(b.t));
+      b.mesh.material.emissive.set(on ? 0xffc83d : 0x000000);
+      b.mesh.material.emissiveIntensity = on ? 2.8 : 0;
+    }
+  }
   removePlayer(p) {
     let n = 0;
     for (const b of this.balls) if (b.t.p === p && !b.fading) { b.fading = true; n++; }
@@ -485,9 +506,10 @@ function loadDrums() {
   }
 }
 async function reload() {
-  const r = await fetch('/api/live/snapshot');
+  const r = await fetch(EMBED ? CFG.staticData : '/api/live/snapshot', { cache: 'no-store' });
   if (!r.ok) return;
-  data = await r.json(); state = data.state;
+  data = await r.json();
+  if (EMBED) { data.rehearsal = false; state = { scene: 'intro', mixing: false, prizeId: null, rehearsal: false }; } else state = data.state;
   loadDrums(); renderIntro(); applyScene(false);
 }
 
@@ -587,6 +609,22 @@ function drawSplash(dt) {
   splash = splash.filter((s) => s.life > 0);
 }
 
+// ---------- Página pública: mezcla por momentos, brillo de tus pelotitas y sonido opcional ----------
+function startStatic() {
+  sfx.enabled = false;
+  reload();
+  setInterval(() => {
+    if (!state) return;
+    state.mixing = true; drums.A.mixTarget = 0.85; drums.B.mixTarget = 0.85; sfx.setMix(0.8);
+    setTimeout(() => { state.mixing = false; drums.A.mixTarget = 0.18; drums.B.mixTarget = 0.18; sfx.setMix(0.15); }, 2800);
+  }, 9000);
+  window.Bombo3D = {
+    highlight(fn) { for (const u of ['A', 'B']) drums[u].setHighlight(fn); },
+    setSound(on) { sfx.init(); sfx.enabled = !!on; if (sfx.ctx) sfx.ctx.resume(); sfx.setMix(on ? 0.2 : 0); },
+  };
+  window.dispatchEvent(new Event('bombo3d-ready'));
+}
+
 // ---------- Tiempo real ----------
 function connect() {
   const es = new EventSource('/api/live/stream');
@@ -683,10 +721,10 @@ function autoQuality() {
 }
 
 setInterval(() => {
-  $('#soundHint').classList.toggle('hidden', !!window.obsstudio || !sfx.ctx || sfx.ctx.state === 'running' || !sfx.enabled);
+  $('#soundHint').classList.toggle('hidden', EMBED || !!window.obsstudio || !sfx.ctx || sfx.ctx.state === 'running' || !sfx.enabled);
 }, 800);
 $('#soundHint').addEventListener('click', () => sfx.ctx && sfx.ctx.resume());
 
 window.__dbg = { THREE, camera, get presented() { return presented; } };
 requestAnimationFrame(frame);
-connect();
+if (EMBED) startStatic(); else connect();

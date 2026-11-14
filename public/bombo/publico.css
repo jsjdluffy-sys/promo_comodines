@@ -4,6 +4,10 @@
 }
 * { box-sizing: border-box; }
 html { background: var(--bg); }
+/* stage3d.css (pantalla de OBS) bloquea el scroll; en la página pública se restablece */
+html, body { height: auto !important; overflow: auto !important; overflow-x: hidden !important; }
+#wrap3d { position: relative; width: 100%; overflow: hidden; }
+#wrap3d #stage { position: absolute; left: 0; top: 0; }
 body {
   margin: 0; min-height: 100vh; color: var(--text); font: 16px/1.5 "Segoe UI", Roboto, Arial, sans-serif;
   background: radial-gradient(120% 900px at 50% 0%, #11285c 0%, #0a1638 45%, var(--bg) 100%) no-repeat, var(--bg);
@@ -57,3 +61,4 @@ input[type=search]:focus { outline: 2px solid var(--blue); }
 .row code { color: #a5dcff; }
 .row.me { background: rgba(255,210,63,.18); outline: 1px solid var(--gold); }
 .foot { text-align: center; color: var(--muted); font-size: .9rem; margin-top: 20px; }
+@media (max-width: 600px) { .sound { padding: 4px 8px; font-size: .8rem; right: 8px; bottom: 8px; } }

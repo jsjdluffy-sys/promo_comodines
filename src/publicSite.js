@@ -14,6 +14,20 @@ function exportPublicSite(snapshot, outDir) {
   copy(path.join(PUBLIC, 'bombo', 'bombo.js'), 'bombo.js');
   copy(path.join(PUBLIC, 'brand', 'logo.png'), 'logo.png');
   copy(path.join(path.dirname(require.resolve('matter-js')), 'matter.min.js'), 'matter.min.js');
+  // Escena 3D (misma del stream) con sus librerías, solo los archivos que usa
+  copy(path.join(PUBLIC, 'bombo', 'overlay3d.js'), 'overlay3d.js');
+  copy(path.join(PUBLIC, 'bombo', 'stage3d.css'), 'stage3d.css');
+  const NM = path.join(__dirname, '..', 'node_modules');
+  const vendor = (from, to) => { const dst = path.join(outDir, 'vendor', to); fs.mkdirSync(path.dirname(dst), { recursive: true }); fs.copyFileSync(path.join(NM, from), dst); };
+  vendor('cannon-es/dist/cannon-es.js', 'cannon-es.js');
+  for (const f of ['build/three.module.js', 'build/three.core.js',
+    'examples/jsm/environments/RoomEnvironment.js',
+    'examples/jsm/postprocessing/EffectComposer.js', 'examples/jsm/postprocessing/RenderPass.js',
+    'examples/jsm/postprocessing/UnrealBloomPass.js', 'examples/jsm/postprocessing/OutputPass.js',
+    'examples/jsm/postprocessing/ShaderPass.js', 'examples/jsm/postprocessing/MaskPass.js', 'examples/jsm/postprocessing/Pass.js',
+    'examples/jsm/shaders/CopyShader.js', 'examples/jsm/shaders/LuminosityHighPassShader.js', 'examples/jsm/shaders/OutputShader.js']) {
+    vendor('three/' + f, 'three/' + f);
+  }
   // Solo datos públicos: códigos de ticket y usuarios enmascarados. Sin ids internos.
   const ids = new Map();
   const anon = (p) => { if (!ids.has(p)) ids.set(p, ids.size + 1); return ids.get(p); };
@@ -26,6 +40,7 @@ function exportPublicSite(snapshot, outDir) {
     },
     prizes: snapshot.prizes.map(({ urn, label, qty }) => ({ urn, label, qty })),
     winners: snapshot.winners.map((w) => ({ urn: w.urn, code: w.code, user: w.user, prize: w.prize, p: anon(w.p) })),
+    discarded: (snapshot.discarded || []).map((d) => ({ urn: d.urn, p: anon(d.p) })), // "al agua": ya no participan
   };
   fs.writeFileSync(path.join(outDir, 'data.json'), JSON.stringify(data));
   // Que Netlify no guarde en caché los datos (para que una nueva publicación se vea al tiro).

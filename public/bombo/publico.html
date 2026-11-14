@@ -6,7 +6,11 @@
   <title>Gran Sorteo Winmax</title>
   <meta name="description" content="Mira tus pelotitas en el bombo y la lista de tickets del Gran Sorteo Winmax.">
   <link rel="icon" href="logo.png">
+  <link rel="stylesheet" href="stage3d.css">
   <link rel="stylesheet" href="publico.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three/build/three.module.js", "three/addons/": "./vendor/three/examples/jsm/", "cannon-es": "./vendor/cannon-es.js" } }
+  </script>
 </head>
 <body>
   <header class="hero">
@@ -18,7 +22,27 @@
 
   <main>
     <section class="drums">
-      <canvas id="c" width="1920" height="1080" aria-label="Bombos del sorteo girando"></canvas>
+      <canvas id="c" class="hidden" width="1920" height="1080" aria-label="Bombos del sorteo girando"></canvas>
+      <!-- Escena 3D (misma del stream) -->
+      <div id="wrap3d" class="hidden">
+        <div id="stage">
+          <div id="gl"></div>
+          <canvas id="fx" width="1920" height="1080"></canvas>
+          <img id="logo" src="logo.png" alt="">
+          <div id="title"><div class="t0">EN VIVO</div><div class="t1">GRAN SORTEO</div></div>
+          <div id="badge" class="hidden">MODO ENSAYO</div>
+          <div id="introLabels"><div class="lt a" id="labA"></div><div class="lt b" id="labB"></div></div>
+          <aside id="panel" class="hidden">
+            <div class="ptitle" id="pTitle"></div>
+            <div class="card prize" id="prizeCard"><div class="k">SE SORTEA</div><div class="v" id="prizeLabel"></div><div class="r" id="prizeLeft"></div></div>
+            <div class="card winner hidden" id="winnerCard"><div class="k">GANADOR</div><div class="user" id="wUser"></div><div class="code" id="wCode"></div><div class="prize" id="wPrize"></div></div>
+            <div class="wlist"><div class="k">GANADORES</div><ol id="wl"></ol></div>
+          </aside>
+          <section id="results" class="hidden"><div class="rcols"><div class="rcol a" id="resA"><ol></ol></div><div class="rcol b" id="resB"><ol></ol></div></div></section>
+          <div id="soundHint" class="hidden"></div>
+          <div id="err" class="hidden"></div>
+        </div>
+      </div>
       <button id="soundBtn" class="sound" type="button">🔇 Sonido</button>
     </section>
 
