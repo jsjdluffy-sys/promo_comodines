@@ -108,9 +108,9 @@
 
   function loadDrums() {
     for (const u of ['A', 'B']) {
-      const winnersHere = new Set(data.winners.filter((w) => w.urn === u).map((w) => w.p));
-      (data.discarded || []).filter((d) => d.urn === u).forEach((d) => winnersHere.add(d.p)); // los "al agua" ya no participan
-      drums[u].setTickets(data.tickets[u], winnersHere);
+      // las pelotitas de los ganadores se quedan (pueden ganar otro tipo de premio); solo salen los "al agua"
+      const out = new Set((data.discarded || []).filter((d) => d.urn === u).map((d) => d.p));
+      drums[u].setTickets(data.tickets[u], out);
     }
   }
 
@@ -163,8 +163,6 @@
     data.winners.push({ id: result.id, urn: result.urn, code: result.code, user: result.user, p: result.p, prize: result.prize.label });
     const pz = data.prizes.find((p) => p.id === result.prize.id); if (pz) pz.remaining = Math.max(0, pz.remaining - 1);
     renderPrize(); renderWinners(result.id);
-    // 5) las demás pelotitas del ganador salen del bombo (1 premio por persona)
-    setTimeout(() => drum.removePlayer(result.p), 1600);
     await wait(1500);
     applyMix();
     busy = false;

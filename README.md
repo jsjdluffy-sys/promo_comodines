@@ -95,7 +95,9 @@ y marca **"Controlar audio vía OBS"**. Para usarla encima de tu propio fondo: `
 2. **Escena:** 🏠 Inicio (los dos bombos) → 🎃 Bombo Comodines → 🎁 Bombo Premios → 🏆 Resultados.
 3. **Premio:** en el Bombo Premios eliges qué se sortea (ej. Boost +20%); en Comodines se elige solo.
 4. **🌀 Mezclar** y **🎱 SACAR PELOTITA**: suspenso, la pelotita sube por el tubo, se revela el ganador con fanfarria y confeti.
-   Las demás pelotitas del ganador salen de ese bombo (máximo 1 premio por persona por bombo).
+   Regla interna (no se muestra al público): cada persona gana máximo 1 premio de cada tipo (1 en efectivo,
+   1 boost, 1 comodín). Quien gana un boost sigue participando por el efectivo y viceversa. Sus pelotitas
+   se quedan en el bombo; solo salen las de quien se manda "al agua".
 
 **💧 Al agua:** si el ganador no está en el vivo, presiona "Al agua" (bajo el último resultado o en la tabla de
 ganadores). La pelotita cae al agua en pantalla, ese jugador sale de ese bombo y el premio se vuelve a sortear:

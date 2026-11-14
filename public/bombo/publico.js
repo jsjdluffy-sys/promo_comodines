@@ -36,9 +36,7 @@
     const small = innerWidth < 700;
     const drums = {};
     const out = (u) => {
-      const s = new Set(data.winners.filter((w) => w.urn === u).map((w) => w.p));
-      (data.discarded || []).filter((d) => d.urn === u).forEach((d) => s.add(d.p));
-      return s;
+      return new Set((data.discarded || []).filter((d) => d.urn === u).map((d) => d.p)); // solo salen los "al agua"
     };
     if (hasA) {
       drums.A = new Drum('A', sfx); drums.A.maxBalls = small ? 120 : 230;

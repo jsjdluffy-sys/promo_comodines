@@ -195,36 +195,43 @@ test('premios por defecto del sorteo', () => {
   ]);
 });
 
-test('extracción: real solo después del cierre, 1 premio por persona por bombo, ensayo aparte', () => {
+test('extracción: real solo después del cierre, 1 premio por TIPO por persona, ensayo aparte', () => {
   const { svc, engine, admin, db } = setupDraw();
   const now = cl('2026-11-11T10:00:00');
   const ids = ['ana', 'beto', 'carla'].map((u) => svc.createPlayer(u, 1).id);
   svc.confirm({ playerId: ids[0], total: 200000, destination: 'dividir', aCount: 5, agentId: 1, now }); // 5 A + 5 B
-  svc.confirm({ playerId: ids[1], total: 20000, destination: 'premios', agentId: 1, now });
+  svc.confirm({ playerId: ids[1], total: 40000, destination: 'premios', agentId: 1, now }); // 2 pelotitas
   svc.confirm({ playerId: ids[2], total: 20000, destination: 'comodin', agentId: 1, now });
   const pr = engine.prizes('2026-11-14');
-  const p25 = pr.find((p) => p.label === '$25.000'), p20 = pr.find((p) => p.label === 'Boost +20%');
+  const cash = (l) => pr.find((p) => p.label === l);
+  const p20 = pr.find((p) => p.label === 'Boost +20%');
   // antes del cierre: solo ensayo
-  assert.throws(() => engine.extract({ drawKey: '2026-11-14', urn: 'B', prizeId: p25.id, rehearsal: false, agent: admin, now }), { code: 'NOT_CLOSED' });
-  const reh = engine.extract({ drawKey: '2026-11-14', urn: 'B', prizeId: p25.id, rehearsal: true, agent: admin, now });
+  assert.throws(() => engine.extract({ drawKey: '2026-11-14', urn: 'B', prizeId: cash('$25.000').id, rehearsal: false, agent: admin, now }), { code: 'NOT_CLOSED' });
+  const reh = engine.extract({ drawKey: '2026-11-14', urn: 'B', prizeId: cash('$25.000').id, rehearsal: true, agent: admin, now });
   assert.ok(reh.rehearsal);
-  // después del cierre: real. Bombo B tiene 2 jugadores -> 2 extracciones posibles, luego vacío
   const after = cl('2026-11-14T19:30:00');
-  const w1 = engine.extract({ drawKey: '2026-11-14', urn: 'B', prizeId: p25.id, rehearsal: false, agent: admin, now: after });
-  const w2 = engine.extract({ drawKey: '2026-11-14', urn: 'B', prizeId: p20.id, rehearsal: false, agent: admin, now: after });
-  assert.notEqual(w1.p, w2.p);
-  assert.throws(() => engine.extract({ drawKey: '2026-11-14', urn: 'B', prizeId: p20.id, rehearsal: false, agent: admin, now: after }), { code: 'EMPTY' });
-  // premio agotado
-  assert.equal(engine.prizes('2026-11-14').find((p) => p.id === p25.id).remaining, 0);
+  const ex = (prize) => engine.extract({ drawKey: '2026-11-14', urn: 'B', prizeId: prize.id, rehearsal: false, agent: admin, now: after });
+  // efectivo: 2 jugadores en el bombo B -> 2 premios en efectivo a personas distintas, el 3º queda sin candidatos
+  const c1 = ex(cash('$5.000')), c2 = ex(cash('$10.000'));
+  assert.notEqual(c1.p, c2.p);
+  assert.throws(() => ex(cash('$15.000')), { code: 'EMPTY' });
+  // boosts: quienes ganaron efectivo SIGUEN participando; tampoco se repite boost por persona
+  const b1 = ex(p20), b2 = ex(p20);
+  assert.ok(ids.slice(0, 2).includes(b1.p) && ids.slice(0, 2).includes(b2.p));
+  assert.notEqual(b1.p, b2.p);
+  assert.throws(() => ex(p20), { code: 'EMPTY' });
+  // ninguna pelotita sale dos veces
+  const codes = [c1, c2, b1, b2].map((x) => x.code);
+  assert.equal(new Set(codes).size, codes.length);
   // el ensayo no afecta lo real; ana puede ganar también en el bombo A
   const pa = pr.find((p) => p.urn === 'A');
   const a1 = engine.extract({ drawKey: '2026-11-14', urn: 'A', prizeId: pa.id, rehearsal: false, agent: admin, now: after });
   assert.ok([ids[0], ids[2]].includes(a1.p));
   // el ticket ganador no se puede anular
-  assert.throws(() => svc.voidTickets([w1.code], '2026-11-14', 'x prueba', 0, admin), { code: 'WINNER' });
-  // anular extracción: el jugador vuelve a participar
-  engine.voidExtraction(w2.id, 'error de prueba', admin);
-  assert.equal(engine.pool('2026-11-14', 'B', false).length > 0, true);
+  assert.throws(() => svc.voidTickets([c1.code], '2026-11-14', 'x prueba', 0, admin), { code: 'WINNER' });
+  // anular una extracción por error: el jugador vuelve a participar por ese tipo
+  engine.voidExtraction(c2.id, 'error de prueba', admin);
+  assert.ok(engine.pool('2026-11-14', 'B', false, 'cash').some((t) => t.player_id === c2.p));
   engine.clearRehearsal('2026-11-14', admin);
   assert.equal(db.prepare('SELECT COUNT(*) n FROM extractions WHERE rehearsal = 1').get().n, 0);
 });
@@ -287,7 +294,8 @@ test('al agua: el ganador ausente sale del bombo y el premio se vuelve a sortear
   const d = engine.discardExtraction(w.id, admin);
   assert.equal(d.p, w.p);
   assert.equal(engine.prizes('2026-11-14').find((p) => p.id === p25.id).remaining, 1); // el premio vuelve
-  assert.ok(engine.pool('2026-11-14', 'B', false).every((t) => t.player_id !== w.p)); // el ausente ya no participa en B
+  assert.ok(engine.pool('2026-11-14', 'B', false, 'boost').every((t) => t.player_id !== w.p)); // el ausente ya no participa en B, por nada
+  assert.ok(engine.pool('2026-11-14', 'B', false).every((t) => t.player_id !== w.p));
   const w2 = engine.extract({ drawKey: '2026-11-14', urn: 'B', prizeId: p25.id, rehearsal: false, agent: admin, now: after });
   assert.notEqual(w2.p, w.p);
   const snap = engine.snapshot('2026-11-14', false);

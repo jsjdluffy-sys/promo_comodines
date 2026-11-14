@@ -72,13 +72,18 @@ function createDrawEngine(db, svc) {
     return { ok: true };
   }
 
-  // Tickets vigentes del bombo, sin los de jugadores que ya ganaron en ese bombo (1 premio por persona).
-  function pool(drawKey, urn, rehearsal) {
+  // Tickets que participan por un premio. Regla: cada persona gana máximo 1 premio de cada TIPO
+  // (1 en efectivo, 1 boost, 1 comodín). Quien gana un boost sigue participando por el efectivo y viceversa.
+  // La pelotita que ya salió no vuelve a salir. Los mandados "al agua" (no estaban en el vivo) salen del bombo para todo.
+  // Sin `kind` (para mostrar cuántos participan) solo se descuentan los "al agua".
+  function pool(drawKey, urn, rehearsal, kind = null) {
     return db.prepare(`SELECT t.id, t.code, t.player_id, p.username FROM tickets t JOIN players p ON p.id = t.player_id
                        WHERE t.draw_key = ? AND t.urn = ? AND t.voided_at IS NULL
-                       AND t.player_id NOT IN (SELECT player_id FROM extractions
-                         WHERE draw_key = ? AND urn = ? AND rehearsal = ? AND (voided_at IS NULL OR discarded = 1))
-                       ORDER BY t.seq`).all(drawKey, urn, drawKey, urn, rehearsal ? 1 : 0);
+                       AND t.id NOT IN (SELECT ticket_id FROM extractions WHERE draw_key = ? AND rehearsal = ? AND voided_at IS NULL)
+                       AND t.player_id NOT IN (SELECT e.player_id FROM extractions e JOIN prizes z ON z.id = e.prize_id
+                         WHERE e.draw_key = ? AND e.urn = ? AND e.rehearsal = ?
+                         AND (e.discarded = 1 OR (e.voided_at IS NULL AND z.kind = ?)))
+                       ORDER BY t.seq`).all(drawKey, urn, drawKey, rehearsal ? 1 : 0, drawKey, urn, rehearsal ? 1 : 0, kind ?? '__ninguno__');
   }
 
   const extractTx = db.transaction(({ drawKey, urn, prizeId, rehearsal, agent, now }) => {
@@ -90,8 +95,8 @@ function createDrawEngine(db, svc) {
     const prize = prizes(drawKey, rehearsal).find((p) => p.id === prizeId && p.urn === urn);
     if (!prize) throw new RuleError('INVALID', 'Elige un premio de este bombo.');
     if (prize.remaining <= 0) throw new RuleError('INVALID', `Ya se sortearon todos los "${prize.label}".`);
-    const candidates = pool(drawKey, urn, rehearsal);
-    if (!candidates.length) throw new RuleError('EMPTY', 'No quedan tickets participando en este bombo.');
+    const candidates = pool(drawKey, urn, rehearsal, prize.kind);
+    if (!candidates.length) throw new RuleError('EMPTY', `No quedan jugadores que puedan ganar este tipo de premio en este bombo.`);
 
     // Aleatoriedad criptográfica y uniforme: cada ticket tiene exactamente la misma probabilidad.
     const index = crypto.randomInt(candidates.length);
@@ -100,15 +105,13 @@ function createDrawEngine(db, svc) {
     const r = db.prepare(`INSERT INTO extractions (draw_key, urn, prize_id, ticket_id, player_id, code, rehearsal,
                           pool_size, pick_index, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
       .run(drawKey, urn, prize.id, win.id, win.player_id, win.code, rehearsal ? 1 : 0, candidates.length, index, agent.id, createdAt);
-    // Tickets del ganador que salen del bombo (regla de 1 premio por persona).
-    const removed = candidates.filter((c) => c.player_id === win.player_id && c.id !== win.id).map((c) => c.code);
     audit(agent.id, rehearsal ? 'draw.extract.rehearsal' : 'draw.extract', win.player_id, {
       draw: drawKey, urn, prize: prize.label, code: win.code, poolSize: candidates.length, index,
     });
     return {
       id: r.lastInsertRowid, urn, code: win.code, user: maskUser(win.username), username: win.username, p: win.player_id,
       prize: { id: prize.id, label: prize.label, kind: prize.kind, value: prize.value },
-      poolSize: candidates.length, removedCodes: removed, rehearsal: !!rehearsal, created_at: createdAt,
+      poolSize: candidates.length, rehearsal: !!rehearsal, created_at: createdAt,
     };
   });
 
