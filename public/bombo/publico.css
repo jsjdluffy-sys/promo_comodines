@@ -62,3 +62,5 @@ input[type=search]:focus { outline: 2px solid var(--blue); }
 .row.me { background: rgba(255,210,63,.18); outline: 1px solid var(--gold); }
 .foot { text-align: center; color: var(--muted); font-size: .9rem; margin-top: 20px; }
 @media (max-width: 600px) { .sound { padding: 4px 8px; font-size: .8rem; right: 8px; bottom: 8px; } }
+
+.mode-note { text-align: center; color: var(--muted); font-size: .8rem; margin: -10px 0 14px; }

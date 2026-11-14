@@ -17,7 +17,15 @@
   let highlight = () => {}, setSound = () => {};
   const webglOK = (() => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; } })();
 
-  function start2D() {
+  // Aviso pequeño cuando se muestra la versión 2D, con el motivo (ayuda a diagnosticar).
+  function note2D(reason) {
+    const n = document.createElement('p'); n.className = 'mode-note';
+    n.textContent = `Vista 2D · ${reason}`;
+    $('.drums').after(n);
+  }
+
+  function start2D(reason) {
+    if (reason) note2D(reason);
     const { Drum, Sfx, Backdrop, W, H } = Bombo;
     $('#wrap3d').classList.add('hidden');
     const canvas = $('#c'); canvas.classList.remove('hidden');
@@ -67,10 +75,12 @@
       search(); // si ya había una búsqueda escrita
     }, { once: true });
     // si la escena 3D falla en este dispositivo, se usa la versión 2D
-    import('./overlay3d.js').catch((e) => { console.warn('3D no disponible, usando 2D', e); start2D(); });
+    import('./overlay3d.js').catch((e) => { console.warn('3D no disponible, usando 2D', e); start2D('no se pudo cargar la escena 3D (faltan archivos de la carpeta vendor)'); });
   }
 
-  if (webglOK && !params.has('2d')) start3D(); else start2D();
+  if (params.has('2d')) start2D();
+  else if (webglOK) start3D();
+  else start2D('tu navegador no tiene 3D activado (revisa la aceleración por hardware)');
 
   let soundOn = false;
   $('#soundBtn').addEventListener('click', () => {
