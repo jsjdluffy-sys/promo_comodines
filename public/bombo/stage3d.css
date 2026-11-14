@@ -96,3 +96,38 @@ body.transparent { background: transparent; }
 
 #soundHint { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); padding: 12px 20px; border-radius: 6px; background: rgba(0,0,0,.6); font-size: 22px; cursor: pointer; }
 #err { position: absolute; left: 40px; right: 40px; top: 40%; padding: 20px; background: #7f1d1d; font-size: 24px; border-radius: 6px; }
+
+/* ===== Identidad Winmax (colores de la versión 2D sobre la base realista) ===== */
+#title .t1 {
+  font-style: italic; letter-spacing: 8px; font-size: 88px; font-weight: 900;
+  background: linear-gradient(180deg, #ffffff 0%, #bfe6ff 45%, #22b8ff 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 4px 0 #062a5c) drop-shadow(0 0 22px rgba(34,184,255,.55));
+  text-shadow: none;
+}
+#title .t2 { color: #a9d8ff; }
+#introLabels .lt { background: linear-gradient(90deg, rgba(10,26,62,.9), rgba(8,16,40,.75)); box-shadow: 0 0 30px rgba(34,184,255,.15); }
+#introLabels .lt.a { border-left-color: #ff8a1f; box-shadow: 0 0 30px rgba(255,138,31,.18); }
+#introLabels .lt.b { border-left-color: #22b8ff; }
+#introLabels .lt.a .n { color: #ffb36b; }
+#introLabels .lt.b .n { color: #7fd6ff; }
+
+.ptitle { font-style: italic; font-size: 32px; text-shadow: 0 0 20px currentColor; border-bottom-width: 3px; }
+#panel.a .ptitle { color: #ffb36b; border-bottom-color: #ff8a1f; }
+#panel.b .ptitle { color: #7fd6ff; border-bottom-color: #22b8ff; }
+
+.card { background: linear-gradient(180deg, rgba(16,34,78,.86), rgba(6,14,36,.92)); border-color: rgba(127,214,255,.35); }
+#panel.a .card { border-color: rgba(255,138,31,.45); box-shadow: 0 20px 50px rgba(0,0,0,.45), 0 0 34px rgba(255,138,31,.18); }
+#panel.b .card { box-shadow: 0 20px 50px rgba(0,0,0,.45), 0 0 34px rgba(34,184,255,.2); }
+.card .k { color: #9fc3ec; }
+.prize .v, .winner .prize {
+  background: linear-gradient(180deg, #fff6c9, #ffd23f 55%, #ff9f1a); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 3px 0 rgba(90,40,0,.55)) drop-shadow(0 0 14px rgba(255,210,63,.4));
+}
+.winner { border-top-color: #ffd23f; box-shadow: 0 20px 50px rgba(0,0,0,.45), 0 0 50px rgba(255,210,63,.3) !important; }
+.winner .k { color: #ffd23f; letter-spacing: 8px; font-size: 22px; font-weight: 900; }
+.winner.water .prize { background: none; color: #7dd3fc; filter: drop-shadow(0 0 16px rgba(56,189,248,.8)); }
+.wlist li { background: rgba(14,30,70,.78); border-left-color: rgba(127,214,255,.45); }
+.wlist li b { color: #ffd23f; }
+.rtitle { font-style: italic; color: #ffd23f; text-shadow: 0 0 30px rgba(255,210,63,.55); }
+#results { background: rgba(4,10,30,.55); }

@@ -53,15 +53,19 @@ const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environmentIntensity = 0.75;
-if (!transparent) {
-  // fondo de estudio: degradado oscuro con un leve foco al centro
-  const c = document.createElement('canvas'); c.width = 16; c.height = 512;
-  const g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 512);
-  gr.addColorStop(0, '#0a1222'); gr.addColorStop(0.55, '#060a14'); gr.addColorStop(1, '#020409');
-  g.fillStyle = gr; g.fillRect(0, 0, 16, 512);
-  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-  scene.background = tex;
+// Fondo: el escenario azul Winmax de la versión 2D (degradado, haces de luz y estrellas), animado.
+const bgCanvas = document.createElement('canvas'); bgCanvas.width = 960; bgCanvas.height = 540;
+const bgCtx = bgCanvas.getContext('2d');
+const backdrop = new window.Bombo.Backdrop();
+const bgTex = new THREE.CanvasTexture(bgCanvas); bgTex.colorSpace = THREE.SRGBColorSpace;
+let bgAccent = '#22b8ff', bgFrame = 0;
+function drawBackground(tsec) {
+  if (transparent || (bgFrame++ % 2)) return; // cada 2 cuadros es suficiente
+  bgCtx.setTransform(0.5, 0, 0, 0.5, 0, 0);
+  backdrop.draw(bgCtx, tsec, bgAccent);
+  bgTex.needsUpdate = true;
 }
+if (!transparent) { drawBackground(0); scene.background = bgTex; }
 
 const camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 100);
 camera.position.set(0, 0.4, 10.5);
@@ -82,15 +86,15 @@ const floorTex = (() => {
   const c = document.createElement('canvas'); c.width = c.height = 1024;
   const g = c.getContext('2d');
   let gr = g.createRadialGradient(512, 512, 0, 512, 512, 512);
-  gr.addColorStop(0, '#1a2233'); gr.addColorStop(0.35, '#0c111c'); gr.addColorStop(0.75, '#05080f'); gr.addColorStop(1, '#04070e');
+  gr.addColorStop(0, 'rgba(34,64,120,1)'); gr.addColorStop(0.3, 'rgba(14,30,66,.95)'); gr.addColorStop(0.7, 'rgba(8,18,44,.7)'); gr.addColorStop(1, 'rgba(8,18,44,0)');
   g.fillStyle = gr; g.fillRect(0, 0, 1024, 1024);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 })();
-const floor = new THREE.Mesh(new THREE.CircleGeometry(16, 64), new THREE.MeshBasicMaterial({ map: floorTex }));
+const floor = new THREE.Mesh(new THREE.CircleGeometry(16, 64), new THREE.MeshBasicMaterial({ map: floorTex, transparent: true, depthWrite: false, fog: false }));
 floor.rotation.x = -Math.PI / 2; floor.position.y = -1.78;
 const shadowCatcher = new THREE.Mesh(new THREE.CircleGeometry(8, 64), new THREE.ShadowMaterial({ opacity: 0.55 }));
 shadowCatcher.rotation.x = -Math.PI / 2; shadowCatcher.position.y = -1.775; shadowCatcher.receiveShadow = true;
-if (!transparent) { scene.add(floor, shadowCatcher); scene.fog = new THREE.Fog(0x04070e, 13, 24); }
+if (!transparent) { scene.add(floor, shadowCatcher); }
 
 // ---------- Materiales ----------
 const chrome = new THREE.MeshPhysicalMaterial({ color: 0xb9c1cd, metalness: 1, roughness: 0.24, clearcoat: 0.4, envMapIntensity: 0.8 });
@@ -98,7 +102,7 @@ const blackGloss = new THREE.MeshPhysicalMaterial({ color: 0x0b0e15, metalness: 
 // Vidrio: solo se SUMAN los reflejos del estudio y un brillo de borde (efecto Fresnel), como el vidrio real
 // sobre fondo oscuro. Así no queda velo blanco y los números de adentro se leen nítidos.
 const glassMat = new THREE.MeshPhysicalMaterial({
-  color: 0x000000, metalness: 0, roughness: 0.04, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1.4,
+  color: 0x000000, metalness: 0, roughness: 0.04, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1.0,
   transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.FrontSide,
 });
 const fresnelMat = new THREE.ShaderMaterial({
@@ -110,6 +114,21 @@ const fresnelMat = new THREE.ShaderMaterial({
     void main() { float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), power); gl_FragColor = vec4(tint * f * strength, 1.0); }`,
   transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
 });
+
+function fresnelFor(hex, strength = 0.75) { // brillo de borde del vidrio, teñido con el color del bombo
+  const m = fresnelMat.clone();
+  m.uniforms = { tint: { value: new THREE.Color(hex) }, power: { value: 2.2 }, strength: { value: strength } };
+  return m;
+}
+// aura de color detrás de cada bombo (como el halo de la versión 2D)
+const haloTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  return new THREE.CanvasTexture(c);
+})();
+const TWO_TONE = { A: [0xff7a1a, 0xa855f7], B: [0x22b8ff, 0x2ee59d] };
 
 const PALETTES = {
   A: ['#f2711c', '#6d28d9', '#e85d04', '#8b2fd6', '#f59e0b', '#5b21b6'],
@@ -177,7 +196,15 @@ class Drum3D {
     // esfera de vidrio con abertura arriba
     const sphereGeo = new THREE.SphereGeometry(R_IN + 0.02, 96, 64, 0, Math.PI * 2, 0.13, Math.PI - 0.13);
     const glass = new THREE.Mesh(sphereGeo, glassMat); glass.renderOrder = 2; g.add(glass);
-    const rimGlow = new THREE.Mesh(sphereGeo, fresnelMat); rimGlow.renderOrder = 3; g.add(rimGlow);
+    const [c1, c2] = TWO_TONE[this.urn];
+    this.fresnel = fresnelFor(c1, 0.5);
+    const rimGlow = new THREE.Mesh(sphereGeo, this.fresnel); rimGlow.renderOrder = 3; g.add(rimGlow);
+    // aura de color detrás del bombo (dos tonos), se intensifica al mezclar
+    this.halos = [c1, c2].map((c, i) => {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: c, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+      sp.scale.setScalar(i ? 2.9 : 3.6); sp.position.set(i ? 0.35 : -0.2, i ? -0.25 : 0.1, -1.3); sp.renderOrder = -1; g.add(sp);
+      return sp;
+    });
     // cuna metálica donde se apoya la esfera
     const cradleY = -0.86, cradleR = Math.sqrt(1 - cradleY * cradleY) * (R_IN + 0.03);
     const cradle = new THREE.Mesh(new THREE.TorusGeometry(cradleR, 0.03, 16, 96), chrome);
@@ -197,7 +224,7 @@ class Drum3D {
     ]);
     const tubeGeo = new THREE.TubeGeometry(this.tubeCurve, 80, 0.13, 32, false);
     const tube = new THREE.Mesh(tubeGeo, glassMat); tube.renderOrder = 3; g.add(tube);
-    const tubeRim = new THREE.Mesh(tubeGeo, fresnelMat); tubeRim.renderOrder = 4; g.add(tubeRim);
+    const tubeRim = new THREE.Mesh(tubeGeo, fresnelFor(c1, 0.6)); tubeRim.renderOrder = 4; g.add(tubeRim);
     const tubeEnd = new THREE.Mesh(new THREE.TorusGeometry(0.135, 0.02, 12, 48), chrome);
     tubeEnd.position.copy(this.tubeCurve.getPoint(1)); tubeEnd.lookAt(this.tubeCurve.getPoint(1).clone().add(this.tubeCurve.getTangent(1)).add(this.group.position));
     g.add(tubeEnd);
@@ -206,16 +233,21 @@ class Drum3D {
     neck.position.y = -R_IN - 0.12; neck.castShadow = true; g.add(neck);
     const base = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.72, 0.5, 64), blackGloss);
     base.position.y = -R_IN - 0.5; base.castShadow = true; base.receiveShadow = true; g.add(base);
-    const trim = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.018, 12, 96), chrome);
+    // aros de neón en la base (brillan con el bloom, más fuerte al mezclar)
+    this.neon = new THREE.MeshStandardMaterial({ color: c1, emissive: c1, emissiveIntensity: 2.2, roughness: 0.4 });
+    const trim = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.02, 12, 96), this.neon);
     trim.rotation.x = Math.PI / 2; trim.position.y = -R_IN - 0.25; g.add(trim);
-    const trim2 = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.02, 12, 96), chrome);
+    const neon2 = new THREE.MeshStandardMaterial({ color: c2, emissive: c2, emissiveIntensity: 1.8, roughness: 0.4 });
+    const trim2 = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.022, 12, 96), neon2);
     trim2.rotation.x = Math.PI / 2; trim2.position.y = -R_IN - 0.75; g.add(trim2);
+    this.neon2 = neon2;
     const accentHex = '#' + ACCENT[this.urn].toString(16).padStart(6, '0');
     const p = plate(this.urn === 'A' ? 'COMODINES' : 'PREMIOS', accentHex);
     p.position.set(0, -R_IN - 0.5, 0.69); p.rotation.x = -0.1; g.add(p);
     // luz de acento suave detrás (marca)
-    const rim = new THREE.PointLight(ACCENT[this.urn], 6, 4, 2); rim.position.set(0, 0.2, -1.4); g.add(rim);
-    this.rimLight = rim;
+    const rim = new THREE.PointLight(c1, 14, 4.5, 2); rim.position.set(-0.9, 0.4, -1.3); g.add(rim);
+    const rim2 = new THREE.PointLight(c2, 10, 4.5, 2); rim2.position.set(0.9, -0.2, -1.3); g.add(rim2);
+    this.rimLight = rim; this.rimLight2 = rim2;
     // luz de "aire" dentro de la base, se intensifica al mezclar
     this.airLight = new THREE.PointLight(0xcfe6ff, 0.6, 2.2, 2); this.airLight.position.set(0, -0.75, 0.2); g.add(this.airLight);
   }
@@ -277,6 +309,12 @@ class Drum3D {
     this.mix = lerp(this.mix, this.mixTarget, 1 - Math.pow(0.03, dt));
     const m = this.mix, g = 9.82, t = this.t;
     this.airLight.intensity = 0.4 + m * 2.2;
+    // el color "respira" y se intensifica al mezclar
+    const breathe = 0.85 + 0.15 * Math.sin(t * 1.6 + (this.urn === 'A' ? 0 : 1.7));
+    const close = this.closeUp ? 0.55 : 1; // en primer plano el aura se atenúa para no lavar el vidrio
+    this.halos[0].material.opacity = (0.26 + 0.18 * m) * breathe * close; this.halos[1].material.opacity = (0.2 + 0.16 * m) * breathe * close;
+    this.neon.emissiveIntensity = (6 + 4 * m) * breathe; this.neon2.emissiveIntensity = (5 + 3.5 * m) * breathe;
+    this.fresnel.uniforms.strength.value = 0.45 + 0.15 * m;
     for (const b of this.balls) {
       if (this.capture && this.capture.ball === b) continue;
       const body = b.body, p = body.position;
@@ -348,7 +386,8 @@ if (!transparent && !LOW) {
   composer = new EffectComposer(renderer);
   composer.setPixelRatio(PR); composer.setSize(W, H);
   composer.addPass(new RenderPass(scene, camera));
-  composer.addPass(new UnrealBloomPass(new THREE.Vector2(W, H), 0.12, 0.4, 0.96));
+  // umbral alto: solo brillan los neones (emisivos), no las etiquetas blancas ni los reflejos del vidrio
+  composer.addPass(new UnrealBloomPass(new THREE.Vector2(W, H), 0.32, 0.45, 2.2));
   composer.addPass(new OutputPass());
 }
 
@@ -383,7 +422,7 @@ function applyScene(animate) {
   const focus = sc === 'A' || sc === 'B';
   drums.A.group.visible = sc === 'A' || ((sc === 'intro' || sc === 'results') && hasA());
   drums.B.group.visible = sc !== 'A';
-  for (const u of ['A', 'B']) drums[u].audible = focus ? sc === u : sc === 'intro';
+  for (const u of ['A', 'B']) { drums[u].audible = focus ? sc === u : sc === 'intro'; drums[u].closeUp = focus && sc === u; }
   moveCamera(sc, animate);
   stage.classList.toggle('focus', focus);
   stage.classList.toggle('results', sc === 'results');
@@ -492,7 +531,7 @@ async function runExtraction(result) {
   // 4) revelación: gira de frente mostrando el número completo
   mesh.material.map = ballTexture(color, result.code); mesh.material.needsUpdate = true;
   presented = { mesh, t: 0 };
-  presLight.intensity = 3;
+  presLight.intensity = 1.2;
   sfx.ding(); sfx.fanfare(result.urn);
   confetti.burst(PRES_SCREEN.x, PRES_SCREEN.y, ['#e9c46a', '#ffffff', '#d4af37', '#f5e6b8'], 150);
   $('#wUser').textContent = result.user;
@@ -619,6 +658,8 @@ function frame(now) {
     presLight.position.copy(m.position).add(tmpV.set(0.3, 0.4, 0.6));
   }
 
+  bgAccent = state?.scene === 'A' ? '#ff8a1f' : '#22b8ff';
+  drawBackground(tsec);
   if (composer) composer.render(); else renderer.render(scene, camera);
   autoQuality();
   fctx.clearRect(0, 0, W, H);
